@@ -170,11 +170,17 @@ export default function Employees() {
     try {
       await axios.delete(`${API}/employees/${employee.id}`);
       toast.success("Employee deleted successfully");
-      fetchEmployees();
+      fetchData();
     } catch (error) {
       console.error("Error deleting employee:", error);
       toast.error("Failed to delete employee");
     }
+  };
+
+  const getContractName = (contractId) => {
+    if (!contractId) return null;
+    const contract = contracts.find(c => c.id === contractId);
+    return contract ? contract.name : null;
   };
 
   const filteredEmployees = employees.filter(emp =>
