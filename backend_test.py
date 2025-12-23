@@ -191,6 +191,9 @@ class PayrollAPITester:
         # Test getting non-existent payslip
         self.run_test("Get Non-existent Payslip", "GET", "payslips/non-existent-id", 404)
         
+        # Test getting non-existent contract
+        self.run_test("Get Non-existent Contract", "GET", "contracts/non-existent-id", 404)
+        
         # Test creating payslip for non-existent employee
         invalid_payslip = {
             "employee_id": "non-existent-id",
@@ -201,6 +204,131 @@ class PayrollAPITester:
             "bonuses": 0
         }
         self.run_test("Create Payslip for Non-existent Employee", "POST", "payslips", 404, invalid_payslip)
+
+    # ========== Contract Tests ==========
+    
+    def test_get_contracts_empty(self):
+        """Test getting contracts when none exist"""
+        return self.run_test("Get Contracts (Empty)", "GET", "contracts", 200)
+
+    def test_create_contract(self):
+        """Test creating a new contract"""
+        contract_data = {
+            "name": "Website Redesign Project",
+            "client": "ABC Corporation",
+            "budget": 100000.0,
+            "start_date": "2025-01-01",
+            "end_date": "2025-06-30",
+            "description": "Complete website redesign and development",
+            "status": "active"
+        }
+        
+        success, response = self.run_test("Create Contract", "POST", "contracts", 200, contract_data)
+        if success and 'id' in response:
+            self.created_contract_id = response['id']
+            print(f"   Created contract ID: {self.created_contract_id}")
+        return success, response
+
+    def test_get_contracts_with_data(self):
+        """Test getting contracts when data exists"""
+        return self.run_test("Get Contracts (With Data)", "GET", "contracts", 200)
+
+    def test_get_contract_by_id(self):
+        """Test getting specific contract by ID"""
+        if not self.created_contract_id:
+            print("❌ Skipped - No contract ID available")
+            return False, {}
+        return self.run_test("Get Contract by ID", "GET", f"contracts/{self.created_contract_id}", 200)
+
+    def test_update_contract(self):
+        """Test updating a contract"""
+        if not self.created_contract_id:
+            print("❌ Skipped - No contract ID available")
+            return False, {}
+        
+        update_data = {
+            "budget": 120000.0,
+            "status": "active",
+            "description": "Updated project scope with additional features"
+        }
+        return self.run_test("Update Contract", "PUT", f"contracts/{self.created_contract_id}", 200, update_data)
+
+    def test_assign_employee_to_contract(self):
+        """Test assigning employee to contract"""
+        if not self.created_employee_id or not self.created_contract_id:
+            print("❌ Skipped - No employee or contract ID available")
+            return False, {}
+        
+        update_data = {
+            "contract_id": self.created_contract_id
+        }
+        return self.run_test("Assign Employee to Contract", "PUT", f"employees/{self.created_employee_id}", 200, update_data)
+
+    def test_assign_second_employee_to_contract(self):
+        """Test assigning second employee to contract"""
+        if not self.second_employee_id or not self.created_contract_id:
+            print("❌ Skipped - No second employee or contract ID available")
+            return False, {}
+        
+        update_data = {
+            "contract_id": self.created_contract_id
+        }
+        return self.run_test("Assign Second Employee to Contract", "PUT", f"employees/{self.second_employee_id}", 200, update_data)
+
+    def test_contract_with_employees(self):
+        """Test getting contract with assigned employees and budget calculations"""
+        if not self.created_contract_id:
+            print("❌ Skipped - No contract ID available")
+            return False, {}
+        
+        success, response = self.run_test("Get Contract with Employees", "GET", f"contracts/{self.created_contract_id}", 200)
+        
+        if success and response:
+            print(f"   Contract has {response.get('employee_count', 0)} employees")
+            print(f"   Labor cost: £{response.get('labor_cost', 0):,.2f}")
+            print(f"   Budget utilization: {response.get('budget_utilization', 0):.1f}%")
+            print(f"   Budget remaining: £{response.get('budget_remaining', 0):,.2f}")
+            
+            # Verify calculations
+            expected_labor_cost = 50000 + 45000  # John Smith + Jane Doe salaries
+            actual_labor_cost = response.get('labor_cost', 0)
+            if abs(actual_labor_cost - expected_labor_cost) < 1:
+                print("✅ Labor cost calculation is correct")
+            else:
+                print(f"❌ Labor cost mismatch: expected {expected_labor_cost}, got {actual_labor_cost}")
+        
+        return success, response
+
+    def test_contracts_list_with_calculations(self):
+        """Test contracts list includes proper calculations"""
+        success, response = self.run_test("Get Contracts List with Calculations", "GET", "contracts", 200)
+        
+        if success and response and len(response) > 0:
+            contract = response[0]  # First contract
+            print(f"   Contract: {contract.get('name')}")
+            print(f"   Employee count: {contract.get('employee_count', 0)}")
+            print(f"   Labor cost: £{contract.get('labor_cost', 0):,.2f}")
+            print(f"   Budget utilization: {contract.get('budget_utilization', 0):.1f}%")
+        
+        return success, response
+
+    def test_unassign_employee_from_contract(self):
+        """Test unassigning employee from contract"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        
+        update_data = {
+            "contract_id": None
+        }
+        return self.run_test("Unassign Employee from Contract", "PUT", f"employees/{self.created_employee_id}", 200, update_data)
+
+    def test_delete_contract(self):
+        """Test deleting a contract"""
+        if not self.created_contract_id:
+            print("❌ Skipped - No contract ID available")
+            return False, {}
+        return self.run_test("Delete Contract", "DELETE", f"contracts/{self.created_contract_id}", 200)
 
     def run_all_tests(self):
         """Run all API tests in sequence"""
