@@ -389,6 +389,128 @@ async def delete_contract(contract_id: str):
         raise HTTPException(status_code=404, detail="Contract not found")
     return {"message": "Contract deleted successfully"}
 
+# ========== Job/Event Endpoints ==========
+
+@api_router.get("/jobs")
+async def get_jobs():
+    jobs = await db.jobs.find({}, {"_id": 0}).to_list(1000)
+    for job in jobs:
+        if isinstance(job.get('created_at'), str):
+            job['created_at'] = datetime.fromisoformat(job['created_at'])
+    return jobs
+
+@api_router.post("/jobs")
+async def create_job(input: JobCreate):
+    job_dict = input.model_dump()
+    job = Job(**job_dict)
+    
+    doc = job.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.jobs.insert_one(doc)
+    return job
+
+@api_router.get("/jobs/{job_id}")
+async def get_job(job_id: str):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if isinstance(job.get('created_at'), str):
+        job['created_at'] = datetime.fromisoformat(job['created_at'])
+    return job
+
+@api_router.put("/jobs/{job_id}")
+async def update_job(job_id: str, input: JobUpdate):
+    existing = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    update_data = {k: v for k, v in input.model_dump().items() if v is not None}
+    if update_data:
+        await db.jobs.update_one({"id": job_id}, {"$set": update_data})
+    
+    updated = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return updated
+
+@api_router.delete("/jobs/{job_id}")
+async def delete_job(job_id: str):
+    result = await db.jobs.delete_one({"id": job_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"message": "Job deleted successfully"}
+
+@api_router.post("/jobs/{job_id}/assign")
+async def assign_employees_to_job(job_id: str, request: AssignEmployeesRequest):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get employee details
+    assigned = []
+    for emp_id in request.employee_ids:
+        employee = await db.employees.find_one({"id": emp_id}, {"_id": 0})
+        if employee:
+            assigned.append({
+                "employee_id": employee['id'],
+                "employee_name": employee['name'],
+                "position": employee['position'],
+                "phone": employee.get('phone', '')
+            })
+    
+    await db.jobs.update_one({"id": job_id}, {"$set": {"assigned_employees": assigned}})
+    
+    updated = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    return updated
+
+@api_router.get("/jobs/{job_id}/export")
+async def export_job_staff_list(job_id: str):
+    """Get job details with assigned staff for export/PDF generation"""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get full employee details for assigned staff
+    staff_details = []
+    for assigned in job.get('assigned_employees', []):
+        employee = await db.employees.find_one({"id": assigned['employee_id']}, {"_id": 0})
+        if employee:
+            staff_details.append({
+                "name": employee['name'],
+                "position": employee['position'],
+                "phone": employee.get('phone', 'N/A'),
+                "email": employee.get('email', 'N/A')
+            })
+    
+    return {
+        "job": job,
+        "staff_list": staff_details,
+        "export_date": datetime.now(timezone.utc).isoformat(),
+        "company": "Right Service Group"
+    }
+
+@api_router.get("/employees/available")
+async def get_available_employees(job_date: Optional[str] = None):
+    """Get employees with their availability status for a given date"""
+    employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
+    
+    # Get all jobs on that date to check who's already assigned
+    assigned_employee_ids = set()
+    if job_date:
+        jobs_on_date = await db.jobs.find({"date": job_date}, {"_id": 0}).to_list(1000)
+        for job in jobs_on_date:
+            for assigned in job.get('assigned_employees', []):
+                assigned_employee_ids.add(assigned.get('employee_id'))
+    
+    # Add assignment status to employees
+    for emp in employees:
+        emp['is_assigned_on_date'] = emp['id'] in assigned_employee_ids
+        if isinstance(emp.get('created_at'), str):
+            emp['created_at'] = datetime.fromisoformat(emp['created_at'])
+    
+    return employees
+
 # ========== Dashboard Endpoint ==========
 
 @api_router.get("/dashboard", response_model=DashboardStats)
