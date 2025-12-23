@@ -332,7 +332,7 @@ class PayrollAPITester:
 
     def run_all_tests(self):
         """Run all API tests in sequence"""
-        print("🚀 Starting Payroll API Tests")
+        print("🚀 Starting Payroll API Tests (Including Contracts Feature)")
         print(f"📍 Base URL: {self.base_url}")
         print("=" * 60)
 
@@ -347,6 +347,23 @@ class PayrollAPITester:
         self.test_update_employee()
         self.test_create_second_employee()
         
+        # Contract CRUD tests
+        print("\n" + "=" * 40)
+        print("🏢 TESTING CONTRACTS FEATURE")
+        print("=" * 40)
+        self.test_get_contracts_empty()
+        self.test_create_contract()
+        self.test_get_contracts_with_data()
+        self.test_get_contract_by_id()
+        self.test_update_contract()
+        
+        # Contract-Employee Integration tests
+        print("\n📋 Testing Contract-Employee Integration...")
+        self.test_assign_employee_to_contract()
+        self.test_assign_second_employee_to_contract()
+        self.test_contract_with_employees()
+        self.test_contracts_list_with_calculations()
+        
         # Dashboard tests
         self.test_dashboard_stats()
         
@@ -359,6 +376,8 @@ class PayrollAPITester:
         
         # Cleanup tests
         self.test_delete_payslip()
+        self.test_unassign_employee_from_contract()
+        self.test_delete_contract()
         self.test_delete_employee()
         
         # Error handling tests
@@ -371,7 +390,7 @@ class PayrollAPITester:
         print(f"📈 Success Rate: {success_rate:.1f}%")
         
         if success_rate >= 90:
-            print("🎉 Excellent! Backend API is working well")
+            print("🎉 Excellent! Backend API (including Contracts) is working well")
         elif success_rate >= 70:
             print("⚠️  Good, but some issues need attention")
         else:
