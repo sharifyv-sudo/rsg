@@ -40,7 +40,7 @@ const formatCurrency = (amount) => {
 };
 
 const STATUS_OPTIONS = [
-  { value: "active", label: "Active", color: "bg-emerald-100 text-emerald-700" },
+  { value: "active", label: "Active", color: "bg-[#DBEAFE] text-[#0F64A8]" },
   { value: "completed", label: "Completed", color: "bg-slate-100 text-slate-700" },
   { value: "on_hold", label: "On Hold", color: "bg-amber-100 text-amber-700" }
 ];
@@ -201,7 +201,7 @@ export default function Contracts() {
         </div>
         <Button
           onClick={() => handleOpenDialog()}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white"
+          className="bg-[#0F64A8] hover:bg-[#0D5590] text-white"
           data-testid="add-contract-btn"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -232,8 +232,8 @@ export default function Contracts() {
                 <p className="stat-label mb-2">ACTIVE</p>
                 <p className="stat-value">{activeContracts}</p>
               </div>
-              <div className="w-10 h-10 rounded-md bg-emerald-100 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-emerald-600" />
+              <div className="w-10 h-10 rounded-md bg-[#DBEAFE] flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-[#0F64A8]" />
               </div>
             </div>
           </CardContent>
@@ -342,7 +342,7 @@ export default function Contracts() {
               <Button
                 variant="link"
                 onClick={() => handleOpenDialog()}
-                className="mt-2 text-emerald-600"
+                className="mt-2 text-[#0F64A8]"
               >
                 Create your first contract
               </Button>
@@ -458,7 +458,7 @@ export default function Contracts() {
               </Button>
               <Button
                 type="submit"
-                className="bg-emerald-500 hover:bg-emerald-600"
+                className="bg-[#0F64A8] hover:bg-[#0D5590]"
                 disabled={submitting}
                 data-testid="save-contract-btn"
               >
@@ -532,7 +532,7 @@ export default function Contracts() {
                           <p className="font-medium text-sm">{emp.name}</p>
                           <p className="text-xs text-muted-foreground">{emp.position} - {emp.department}</p>
                         </div>
-                        <p className="font-mono text-sm text-emerald-600">{formatCurrency(emp.annual_salary)}/yr</p>
+                        <p className="font-mono text-sm text-[#0F64A8]">{formatCurrency(emp.annual_salary)}/yr</p>
                       </div>
                     ))}
                   </div>
@@ -559,7 +559,7 @@ export default function Contracts() {
                 setShowDetailDialog(false);
                 handleOpenDialog(selectedContract);
               }}
-              className="bg-emerald-500 hover:bg-emerald-600"
+              className="bg-[#0F64A8] hover:bg-[#0D5590]"
             >
               <Pencil className="w-4 h-4 mr-2" />
               Edit Contract

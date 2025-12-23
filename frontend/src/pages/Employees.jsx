@@ -216,7 +216,7 @@ export default function Employees() {
         </div>
         <Button
           onClick={() => handleOpenDialog()}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white"
+          className="bg-[#0F64A8] hover:bg-[#0D5590] text-white"
           data-testid="add-employee-btn"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -281,7 +281,7 @@ export default function Employees() {
                           <span className="text-xs text-muted-foreground">Unassigned</span>
                         )}
                       </td>
-                      <td className="font-mono text-emerald-600 font-medium">
+                      <td className="font-mono text-[#0F64A8] font-medium">
                         {formatCurrency(employee.annual_salary)}
                       </td>
                       <td>
@@ -318,7 +318,7 @@ export default function Employees() {
               <Button
                 variant="link"
                 onClick={() => handleOpenDialog()}
-                className="mt-2 text-emerald-600"
+                className="mt-2 text-[#0F64A8]"
               >
                 Add your first employee
               </Button>
@@ -480,7 +480,7 @@ export default function Employees() {
               </Button>
               <Button
                 type="submit"
-                className="bg-emerald-500 hover:bg-emerald-600"
+                className="bg-[#0F64A8] hover:bg-[#0D5590]"
                 disabled={submitting}
                 data-testid="save-employee-btn"
               >

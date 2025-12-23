@@ -165,7 +165,7 @@ export default function Payslips() {
         </div>
         <Button
           onClick={() => setShowGenerateDialog(true)}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white"
+          className="bg-[#0F64A8] hover:bg-[#0D5590] text-white"
           disabled={employees.length === 0}
           data-testid="generate-payslip-btn"
         >
@@ -228,7 +228,7 @@ export default function Payslips() {
                         <td className="font-mono text-destructive">
                           -{formatCurrency(totalDeductions)}
                         </td>
-                        <td className="font-mono text-emerald-600 font-medium">
+                        <td className="font-mono text-[#0F64A8] font-medium">
                           {formatCurrency(payslip.net_salary)}
                         </td>
                         <td>
@@ -267,7 +267,7 @@ export default function Payslips() {
                 <Button
                   variant="link"
                   onClick={() => setShowGenerateDialog(true)}
-                  className="mt-2 text-emerald-600"
+                  className="mt-2 text-[#0F64A8]"
                 >
                   Generate your first payslip
                 </Button>
@@ -395,9 +395,9 @@ export default function Payslips() {
               </div>
 
               {selectedEmployee && (
-                <div className="p-4 bg-emerald-50 rounded-md border border-emerald-200">
-                  <p className="text-sm text-emerald-700 mb-1">Estimated Net Pay</p>
-                  <p className="font-mono text-xl font-bold text-emerald-700">
+                <div className="p-4 bg-[#E0F2FE] rounded-md border border-[#41BDF0]">
+                  <p className="text-sm text-[#0F64A8] mb-1">Estimated Net Pay</p>
+                  <p className="font-mono text-xl font-bold text-[#0F64A8]">
                     {formatCurrency(
                       monthlyGross +
                       parseFloat(formData.bonuses || 0) -
@@ -415,7 +415,7 @@ export default function Payslips() {
               </Button>
               <Button
                 type="submit"
-                className="bg-emerald-500 hover:bg-emerald-600"
+                className="bg-[#0F64A8] hover:bg-[#0D5590]"
                 disabled={submitting || !formData.employee_id}
                 data-testid="submit-payslip-btn"
               >
@@ -468,7 +468,7 @@ export default function Payslips() {
                   {selectedPayslip.bonuses > 0 && (
                     <div className="flex justify-between py-2 border-b">
                       <span>Bonus</span>
-                      <span className="font-mono text-emerald-600">+{formatCurrency(selectedPayslip.bonuses)}</span>
+                      <span className="font-mono text-[#0F64A8]">+{formatCurrency(selectedPayslip.bonuses)}</span>
                     </div>
                   )}
                   <div className="flex justify-between py-2 font-medium">
@@ -516,13 +516,13 @@ export default function Payslips() {
               </div>
 
               {/* Net Pay */}
-              <div className="bg-emerald-50 p-4 rounded-md border border-emerald-200">
+              <div className="bg-[#E0F2FE] p-4 rounded-md border border-[#41BDF0]">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-sm text-emerald-700">Net Pay</p>
-                    <p className="text-xs text-emerald-600">Amount to be paid</p>
+                    <p className="text-sm text-[#0F64A8]">Net Pay</p>
+                    <p className="text-xs text-[#0F64A8]">Amount to be paid</p>
                   </div>
-                  <p className="font-mono text-3xl font-bold text-emerald-700">
+                  <p className="font-mono text-3xl font-bold text-[#0F64A8]">
                     {formatCurrency(selectedPayslip.net_salary)}
                   </p>
                 </div>
@@ -534,7 +534,7 @@ export default function Payslips() {
             <Button variant="outline" onClick={() => setShowViewDialog(false)}>
               Close
             </Button>
-            <Button onClick={handlePrint} className="bg-emerald-500 hover:bg-emerald-600">
+            <Button onClick={handlePrint} className="bg-[#0F64A8] hover:bg-[#0D5590]">
               <Printer className="w-4 h-4 mr-2" />
               Print
             </Button>

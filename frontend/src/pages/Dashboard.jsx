@@ -79,8 +79,8 @@ export default function Dashboard() {
                 <p className="stat-label mb-2">MONTHLY PAYROLL</p>
                 <p className="stat-value currency">{formatCurrency(stats?.total_monthly_payroll || 0)}</p>
               </div>
-              <div className="w-10 h-10 rounded-md bg-emerald-100 flex items-center justify-center">
-                <PoundSterling className="w-5 h-5 text-emerald-600" />
+              <div className="w-10 h-10 rounded-md bg-[#DBEAFE] flex items-center justify-center">
+                <PoundSterling className="w-5 h-5 text-[#0F64A8]" />
               </div>
             </div>
           </CardContent>
@@ -157,7 +157,7 @@ export default function Dashboard() {
                       <p className="font-medium text-sm">{ps.employee_name}</p>
                       <p className="text-xs text-muted-foreground">Period: {ps.period}</p>
                     </div>
-                    <p className="font-mono text-sm font-medium text-emerald-600">
+                    <p className="font-mono text-sm font-medium text-[#0F64A8]">
                       {formatCurrency(ps.net_salary)}
                     </p>
                   </div>
