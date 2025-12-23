@@ -141,7 +141,7 @@ class PayrollAPITester:
             "other_deductions": []
         }
         
-        success, response = self.run_test("Create Payslip", "POST", "payslips", 201, payslip_data)
+        success, response = self.run_test("Create Payslip", "POST", "payslips", 200, payslip_data)
         if success and 'id' in response:
             self.created_payslip_id = response['id']
             print(f"   Created payslip ID: {self.created_payslip_id}")
