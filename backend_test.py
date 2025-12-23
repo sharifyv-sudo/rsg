@@ -331,6 +331,160 @@ class PayrollAPITester:
             return False, {}
         return self.run_test("Delete Contract", "DELETE", f"contracts/{self.created_contract_id}", 200)
 
+    # ========== Job Assignment Tests ==========
+    
+    def test_get_jobs_empty(self):
+        """Test getting jobs when none exist"""
+        return self.run_test("Get Jobs (Empty)", "GET", "jobs", 200)
+
+    def test_create_job(self):
+        """Test creating a new job"""
+        job_data = {
+            "name": "Arsenal vs Chelsea - Emirates Stadium",
+            "client": "Arsenal FC",
+            "date": "2025-09-15",
+            "location": "Emirates Stadium, London",
+            "start_time": "14:00",
+            "end_time": "18:00",
+            "job_type": "Steward",
+            "staff_required": 5,
+            "hourly_rate": 15.50,
+            "notes": "Premier League match - high security required",
+            "status": "upcoming"
+        }
+        
+        success, response = self.run_test("Create Job", "POST", "jobs", 200, job_data)
+        if success and 'id' in response:
+            self.created_job_id = response['id']
+            print(f"   Created job ID: {self.created_job_id}")
+        return success, response
+
+    def test_get_jobs_with_data(self):
+        """Test getting jobs when data exists"""
+        return self.run_test("Get Jobs (With Data)", "GET", "jobs", 200)
+
+    def test_get_job_by_id(self):
+        """Test getting specific job by ID"""
+        if not self.created_job_id:
+            print("❌ Skipped - No job ID available")
+            return False, {}
+        return self.run_test("Get Job by ID", "GET", f"jobs/{self.created_job_id}", 200)
+
+    def test_update_job(self):
+        """Test updating a job"""
+        if not self.created_job_id:
+            print("❌ Skipped - No job ID available")
+            return False, {}
+        
+        update_data = {
+            "staff_required": 8,
+            "hourly_rate": 16.00,
+            "notes": "Updated: Extra security staff required"
+        }
+        return self.run_test("Update Job", "PUT", f"jobs/{self.created_job_id}", 200, update_data)
+
+    def test_get_available_employees(self):
+        """Test getting available employees for job assignment"""
+        if not self.created_job_id:
+            print("❌ Skipped - No job ID available")
+            return False, {}
+        
+        # Test with job date parameter
+        params = {"job_date": "2025-09-15"}
+        return self.run_test("Get Available Employees", "GET", "employees/available", 200, params=params)
+
+    def test_assign_employees_to_job(self):
+        """Test assigning employees to a job"""
+        if not self.created_job_id or not self.created_employee_id or not self.second_employee_id:
+            print("❌ Skipped - Missing job or employee IDs")
+            return False, {}
+        
+        assign_data = {
+            "employee_ids": [self.created_employee_id, self.second_employee_id]
+        }
+        return self.run_test("Assign Employees to Job", "POST", f"jobs/{self.created_job_id}/assign", 200, assign_data)
+
+    def test_export_job_staff_list(self):
+        """Test exporting job staff list"""
+        if not self.created_job_id:
+            print("❌ Skipped - No job ID available")
+            return False, {}
+        
+        success, response = self.run_test("Export Job Staff List", "GET", f"jobs/{self.created_job_id}/export", 200)
+        
+        if success and response:
+            print(f"   Job: {response.get('job', {}).get('name', 'N/A')}")
+            print(f"   Staff count: {len(response.get('staff_list', []))}")
+            print(f"   Company: {response.get('company', 'N/A')}")
+            
+            # Verify export structure
+            required_fields = ['job', 'staff_list', 'export_date', 'company']
+            missing_fields = [field for field in required_fields if field not in response]
+            if not missing_fields:
+                print("✅ Export structure is correct")
+            else:
+                print(f"❌ Missing export fields: {missing_fields}")
+        
+        return success, response
+
+    def test_create_second_job(self):
+        """Test creating a second job for testing conflicts"""
+        job_data = {
+            "name": "Manchester United vs Liverpool - Old Trafford",
+            "client": "Manchester United FC",
+            "date": "2025-09-15",  # Same date as first job
+            "location": "Old Trafford, Manchester",
+            "start_time": "15:00",
+            "end_time": "19:00",
+            "job_type": "Security",
+            "staff_required": 3,
+            "hourly_rate": 18.00,
+            "status": "upcoming"
+        }
+        
+        success, response = self.run_test("Create Second Job (Same Date)", "POST", "jobs", 200, job_data)
+        return success, response
+
+    def test_employee_availability_conflict(self):
+        """Test that assigned employees show as unavailable for same date"""
+        params = {"job_date": "2025-09-15"}
+        success, response = self.run_test("Check Employee Availability Conflicts", "GET", "employees/available", 200, params=params)
+        
+        if success and response:
+            assigned_employees = [emp for emp in response if emp.get('is_assigned_on_date', False)]
+            print(f"   Employees assigned on date: {len(assigned_employees)}")
+            if len(assigned_employees) >= 2:  # Should have our 2 assigned employees
+                print("✅ Availability conflict detection working")
+            else:
+                print("❌ Availability conflict detection may not be working")
+        
+        return success, response
+
+    def test_job_error_cases(self):
+        """Test job-related error handling"""
+        print("\n🔍 Testing Job Error Cases...")
+        
+        # Test getting non-existent job
+        self.run_test("Get Non-existent Job", "GET", "jobs/non-existent-id", 404)
+        
+        # Test updating non-existent job
+        update_data = {"staff_required": 10}
+        self.run_test("Update Non-existent Job", "PUT", "jobs/non-existent-id", 404, update_data)
+        
+        # Test assigning to non-existent job
+        assign_data = {"employee_ids": ["some-id"]}
+        self.run_test("Assign to Non-existent Job", "POST", "jobs/non-existent-id/assign", 404, assign_data)
+        
+        # Test export for non-existent job
+        self.run_test("Export Non-existent Job", "GET", "jobs/non-existent-id/export", 404)
+
+    def test_delete_job(self):
+        """Test deleting a job"""
+        if not self.created_job_id:
+            print("❌ Skipped - No job ID available")
+            return False, {}
+        return self.run_test("Delete Job", "DELETE", f"jobs/{self.created_job_id}", 200)
+
     def run_all_tests(self):
         """Run all API tests in sequence"""
         print("🚀 Starting Payroll API Tests (Including Contracts Feature)")
