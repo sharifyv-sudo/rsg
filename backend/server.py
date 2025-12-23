@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,10 +6,9 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
-
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -25,46 +24,241 @@ app = FastAPI()
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+# ========== Models ==========
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
+class Employee(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    name: str
+    email: str
+    department: str
+    position: str
+    annual_salary: float  # In GBP
+    bank_account: Optional[str] = None
+    sort_code: Optional[str] = None
+    tax_code: Optional[str] = "1257L"  # Default UK tax code
+    ni_number: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+class EmployeeCreate(BaseModel):
+    name: str
+    email: str
+    department: str
+    position: str
+    annual_salary: float
+    bank_account: Optional[str] = None
+    sort_code: Optional[str] = None
+    tax_code: Optional[str] = "1257L"
+    ni_number: Optional[str] = None
 
-# Add your routes to the router instead of directly to app
+class EmployeeUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    department: Optional[str] = None
+    position: Optional[str] = None
+    annual_salary: Optional[float] = None
+    bank_account: Optional[str] = None
+    sort_code: Optional[str] = None
+    tax_code: Optional[str] = None
+    ni_number: Optional[str] = None
+
+class Deduction(BaseModel):
+    name: str
+    amount: float
+
+class Payslip(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    employee_id: str
+    employee_name: str
+    period_month: int  # 1-12
+    period_year: int
+    gross_salary: float  # Monthly gross
+    tax_deduction: float = 0.0  # PAYE (optional)
+    ni_deduction: float = 0.0  # National Insurance (optional)
+    other_deductions: List[Deduction] = []
+    bonuses: float = 0.0
+    net_salary: float
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class PayslipCreate(BaseModel):
+    employee_id: str
+    period_month: int
+    period_year: int
+    tax_deduction: float = 0.0
+    ni_deduction: float = 0.0
+    other_deductions: List[Deduction] = []
+    bonuses: float = 0.0
+
+class DashboardStats(BaseModel):
+    total_employees: int
+    total_monthly_payroll: float
+    average_salary: float
+    departments: List[dict]
+    recent_payslips: List[dict]
+
+# ========== Employee Endpoints ==========
+
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Payroll System API - British Pound (£)"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
+@api_router.get("/employees", response_model=List[Employee])
+async def get_employees():
+    employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
+    for emp in employees:
+        if isinstance(emp.get('created_at'), str):
+            emp['created_at'] = datetime.fromisoformat(emp['created_at'])
+    return employees
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
+@api_router.post("/employees", response_model=Employee)
+async def create_employee(input: EmployeeCreate):
+    employee_dict = input.model_dump()
+    employee = Employee(**employee_dict)
     
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
+    doc = employee.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
     
-    return status_checks
+    await db.employees.insert_one(doc)
+    return employee
+
+@api_router.get("/employees/{employee_id}", response_model=Employee)
+async def get_employee(employee_id: str):
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    if isinstance(employee.get('created_at'), str):
+        employee['created_at'] = datetime.fromisoformat(employee['created_at'])
+    return employee
+
+@api_router.put("/employees/{employee_id}", response_model=Employee)
+async def update_employee(employee_id: str, input: EmployeeUpdate):
+    existing = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    update_data = {k: v for k, v in input.model_dump().items() if v is not None}
+    if update_data:
+        await db.employees.update_one({"id": employee_id}, {"$set": update_data})
+    
+    updated = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return updated
+
+@api_router.delete("/employees/{employee_id}")
+async def delete_employee(employee_id: str):
+    result = await db.employees.delete_one({"id": employee_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    return {"message": "Employee deleted successfully"}
+
+# ========== Payslip Endpoints ==========
+
+@api_router.get("/payslips", response_model=List[Payslip])
+async def get_payslips():
+    payslips = await db.payslips.find({}, {"_id": 0}).to_list(1000)
+    for ps in payslips:
+        if isinstance(ps.get('created_at'), str):
+            ps['created_at'] = datetime.fromisoformat(ps['created_at'])
+    return payslips
+
+@api_router.post("/payslips", response_model=Payslip)
+async def create_payslip(input: PayslipCreate):
+    # Get employee
+    employee = await db.employees.find_one({"id": input.employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Calculate monthly gross
+    monthly_gross = employee['annual_salary'] / 12
+    
+    # Calculate total deductions
+    other_deductions_total = sum(d.amount for d in input.other_deductions)
+    total_deductions = input.tax_deduction + input.ni_deduction + other_deductions_total
+    
+    # Calculate net salary
+    net_salary = monthly_gross + input.bonuses - total_deductions
+    
+    payslip = Payslip(
+        employee_id=input.employee_id,
+        employee_name=employee['name'],
+        period_month=input.period_month,
+        period_year=input.period_year,
+        gross_salary=round(monthly_gross, 2),
+        tax_deduction=input.tax_deduction,
+        ni_deduction=input.ni_deduction,
+        other_deductions=[d.model_dump() for d in input.other_deductions],
+        bonuses=input.bonuses,
+        net_salary=round(net_salary, 2)
+    )
+    
+    doc = payslip.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.payslips.insert_one(doc)
+    return payslip
+
+@api_router.get("/payslips/{payslip_id}", response_model=Payslip)
+async def get_payslip(payslip_id: str):
+    payslip = await db.payslips.find_one({"id": payslip_id}, {"_id": 0})
+    if not payslip:
+        raise HTTPException(status_code=404, detail="Payslip not found")
+    if isinstance(payslip.get('created_at'), str):
+        payslip['created_at'] = datetime.fromisoformat(payslip['created_at'])
+    return payslip
+
+@api_router.delete("/payslips/{payslip_id}")
+async def delete_payslip(payslip_id: str):
+    result = await db.payslips.delete_one({"id": payslip_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Payslip not found")
+    return {"message": "Payslip deleted successfully"}
+
+# ========== Dashboard Endpoint ==========
+
+@api_router.get("/dashboard", response_model=DashboardStats)
+async def get_dashboard():
+    employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
+    payslips = await db.payslips.find({}, {"_id": 0}).to_list(100)
+    
+    total_employees = len(employees)
+    total_annual = sum(emp.get('annual_salary', 0) for emp in employees)
+    total_monthly_payroll = total_annual / 12 if total_employees > 0 else 0
+    average_salary = total_annual / total_employees if total_employees > 0 else 0
+    
+    # Group by department
+    dept_counts = {}
+    for emp in employees:
+        dept = emp.get('department', 'Unknown')
+        if dept not in dept_counts:
+            dept_counts[dept] = {'name': dept, 'count': 0, 'total_salary': 0}
+        dept_counts[dept]['count'] += 1
+        dept_counts[dept]['total_salary'] += emp.get('annual_salary', 0)
+    
+    departments = list(dept_counts.values())
+    
+    # Recent payslips (last 5)
+    recent_payslips = sorted(payslips, key=lambda x: x.get('created_at', ''), reverse=True)[:5]
+    recent_payslips_data = [
+        {
+            'id': ps.get('id'),
+            'employee_name': ps.get('employee_name'),
+            'period': f"{ps.get('period_month')}/{ps.get('period_year')}",
+            'net_salary': ps.get('net_salary')
+        }
+        for ps in recent_payslips
+    ]
+    
+    return DashboardStats(
+        total_employees=total_employees,
+        total_monthly_payroll=round(total_monthly_payroll, 2),
+        average_salary=round(average_salary, 2),
+        departments=departments,
+        recent_payslips=recent_payslips_data
+    )
 
 # Include the router in the main app
 app.include_router(api_router)

@@ -1,34 +1,153 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Payroll System Styles */
+
+.tracking-tight {
+    letter-spacing: -0.025em;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+.tracking-widest {
+    letter-spacing: 0.1em;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
+/* Card hover effect */
+.card-hover {
+    transition: box-shadow 200ms ease-out, border-color 200ms ease-out;
+}
+
+.card-hover:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #CBD5E1;
+}
+
+/* Stat card */
+.stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #0F172A;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #64748B;
+}
+
+/* Table styles */
+.payroll-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.payroll-table th {
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748B;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #E2E8F0;
+    background: #F8FAFC;
+}
+
+.payroll-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #E2E8F0;
+    font-size: 0.875rem;
+}
+
+.payroll-table tr:hover td {
+    background: #F8FAFC;
+}
+
+/* Amount positive/negative */
+.amount-positive {
+    color: #10B981;
+}
+
+.amount-negative {
+    color: #EF4444;
+}
+
+/* Sidebar nav */
+.nav-item {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #64748B;
+    transition: all 200ms ease-out;
 }
 
-.App-link {
-    color: #61dafb;
+.nav-item:hover {
+    color: #0F172A;
+    background: #F1F5F9;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
+.nav-item.active {
+    color: #0F172A;
+    background: #F1F5F9;
+}
+
+/* Badge */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 9999px;
+}
+
+.badge-emerald {
+    background: #D1FAE5;
+    color: #059669;
+}
+
+.badge-slate {
+    background: #F1F5F9;
+    color: #475569;
+}
+
+/* Form input styles */
+.form-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    border: 1px solid #E2E8F0;
+    border-radius: 0.375rem;
+    background: #F8FAFC;
+    transition: all 200ms ease-out;
+}
+
+.form-input:focus {
+    background: #FFFFFF;
+    border-color: #10B981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
+}
+
+.form-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.375rem;
+}
+
+/* Payslip print styles */
+@media print {
+    .no-print {
+        display: none !important;
     }
-    to {
-        transform: rotate(360deg);
+    
+    .payslip-document {
+        padding: 2rem;
+        background: white;
     }
 }
