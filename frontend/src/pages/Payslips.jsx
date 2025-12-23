@@ -438,7 +438,7 @@ export default function Payslips() {
               {/* Header */}
               <div className="flex items-start justify-between pb-4 border-b mb-4">
                 <div>
-                  <h2 className="font-heading text-2xl font-bold">PayrollPro UK</h2>
+                  <h2 className="font-heading text-2xl font-bold">Right Service Group</h2>
                   <p className="text-sm text-muted-foreground">Payslip Document</p>
                 </div>
                 <div className="text-right">

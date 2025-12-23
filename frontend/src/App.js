@@ -23,7 +23,7 @@ const Sidebar = () => {
             <PoundSterling className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="font-heading font-bold text-lg text-foreground tracking-tight">PayrollPro</h1>
+            <h1 className="font-heading font-bold text-lg text-foreground tracking-tight">Right Service Group</h1>
             <p className="text-xs text-muted-foreground">British Pound (£)</p>
           </div>
         </div>
@@ -48,7 +48,7 @@ const Sidebar = () => {
       
       <div className="p-4 border-t border-border">
         <p className="text-xs text-muted-foreground text-center">
-          © 2025 PayrollPro UK
+          © 2025 Right Service Group
         </p>
       </div>
     </aside>
