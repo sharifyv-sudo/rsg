@@ -371,6 +371,18 @@ export default function Employees() {
                 </div>
               </div>
 
+              <div>
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="07xxx xxxxxx"
+                  data-testid="employee-phone-input"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="department">Department *</Label>
@@ -401,13 +413,14 @@ export default function Employees() {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="annual_salary">Annual Salary (£) *</Label>
-                <Input
-                  id="annual_salary"
-                  type="number"
-                  min="0"
-                  step="100"
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="annual_salary">Annual Salary (£) *</Label>
+                  <Input
+                    id="annual_salary"
+                    type="number"
+                    min="0"
+                    step="100"
                   value={formData.annual_salary}
                   onChange={(e) => setFormData({ ...formData, annual_salary: e.target.value })}
                   required
