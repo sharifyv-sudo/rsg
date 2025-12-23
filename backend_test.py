@@ -546,12 +546,14 @@ class PayrollAPITester:
         
         # Cleanup tests
         self.test_delete_payslip()
+        self.test_delete_job()
         self.test_unassign_employee_from_contract()
         self.test_delete_contract()
         self.test_delete_employee()
         
         # Error handling tests
         self.test_error_cases()
+        self.test_job_error_cases()
 
         # Print final results
         print("\n" + "=" * 60)
