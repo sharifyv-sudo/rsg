@@ -54,6 +54,7 @@ const formatCurrency = (amount) => {
 const initialFormData = {
   name: "",
   email: "",
+  phone: "",
   department: "",
   position: "",
   annual_salary: "",
@@ -61,8 +62,15 @@ const initialFormData = {
   bank_account: "",
   sort_code: "",
   tax_code: "1257L",
-  ni_number: ""
+  ni_number: "",
+  availability: "available"
 };
+
+const AVAILABILITY_OPTIONS = [
+  { value: "available", label: "Available", color: "bg-green-100 text-green-700" },
+  { value: "unavailable", label: "Unavailable", color: "bg-red-100 text-red-700" },
+  { value: "on_leave", label: "On Leave", color: "bg-amber-100 text-amber-700" }
+];
 
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
