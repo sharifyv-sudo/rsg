@@ -57,6 +57,7 @@ const initialFormData = {
   department: "",
   position: "",
   annual_salary: "",
+  contract_id: "",
   bank_account: "",
   sort_code: "",
   tax_code: "1257L",
@@ -65,6 +66,7 @@ const initialFormData = {
 
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
+  const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -73,8 +75,24 @@ export default function Employees() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchEmployees();
+    fetchData();
   }, []);
+
+  const fetchData = async () => {
+    try {
+      const [empRes, contractsRes] = await Promise.all([
+        axios.get(`${API}/employees`),
+        axios.get(`${API}/contracts`)
+      ]);
+      setEmployees(empRes.data);
+      setContracts(contractsRes.data);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
