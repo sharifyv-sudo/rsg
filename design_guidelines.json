@@ -1,0 +1,160 @@
+{
+  "identity": {
+    "name": "E1",
+    "archetype": "Swiss & High-Contrast",
+    "vibe": "Objective, Rigid, Functional, Financial Terminal",
+    "core_principles": [
+      "Fusion over Imitation: Mix Swiss Poster aesthetics with Bloomberg Terminal density",
+      "Emotion First: Trust and Precision",
+      "Content is King: Data is the hero, UI is the frame",
+      "Zoom in: Focus on the numbers",
+      "Negative Space: Use it to group logic, not just for decoration",
+      "Contrast: High contrast for readability, subtle borders for structure"
+    ]
+  },
+  "typography": {
+    "strategy": "The Soft Utility",
+    "fonts": {
+      "headings": {
+        "family": "Manrope",
+        "weights": ["600", "700", "800"],
+        "usage": "Page titles, Section headers, Key metrics"
+      },
+      "body": {
+        "family": "IBM Plex Sans",
+        "weights": ["400", "500"],
+        "usage": "General text, Labels, Form inputs"
+      },
+      "mono": {
+        "family": "JetBrains Mono",
+        "weights": ["400", "500"],
+        "usage": "Currency values, Dates, ID numbers, Tabular data"
+      }
+    },
+    "rules": [
+      "Headings > 32px must use tracking-tight",
+      "Overlines must be Uppercase + tracking-widest + text-xs",
+      "Line height: leading-none for headers, leading-relaxed for body",
+      "Never use Inter for headings"
+    ]
+  },
+  "colors": {
+    "palette": {
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "foreground": "#0F172A",
+      "primary": "#0F172A",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#F1F5F9",
+      "secondary_foreground": "#0F172A",
+      "accent": "#10B981",
+      "accent_foreground": "#FFFFFF",
+      "muted": "#F1F5F9",
+      "muted_foreground": "#64748B",
+      "border": "#E2E8F0",
+      "input": "#E2E8F0",
+      "destructive": "#EF4444",
+      "destructive_foreground": "#FFFFFF"
+    },
+    "usage_rules": [
+      "Base: Stark White or Slate 50",
+      "Accents: Emerald 500 (Money/Success) only for positive values and primary actions",
+      "Text: Slate 900 for primary, Slate 500 for secondary. Never pure black.",
+      "Borders: Slate 200. Use 1px borders to define structure.",
+      "Forbidden: Teal (#1B93A4), Gradients on backgrounds"
+    ]
+  },
+  "visual_enhancers": {
+    "surface_strategy": "Grid Borders (The Technical Look)",
+    "implementation": [
+      "Container: border-collapse style layout",
+      "Items: border-r border-b border-border/40",
+      "No shadows on cards by default, only on hover",
+      "Sharp or minimal radius (rounded-sm or rounded-md)"
+    ],
+    "decorations": [
+      "Subtle grain texture on sidebar or header",
+      "ASCII art for 404 pages or loaders",
+      "Monospace numbers for all data"
+    ]
+  },
+  "layout": {
+    "grid_system": "The Control Room Grid",
+    "rules": [
+      "Base Grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
+      "Gap Strategy: Tight (gap-4 or gap-6)",
+      "Span Logic: Summary (col-span-1), Primary Data (col-span-2 row-span-2), Feed (col-span-1 row-span-2)",
+      "Every pixel must be utilized. Use h-full on children."
+    ],
+    "spacing": {
+      "scale": ["p-1", "p-2", "p-4", "p-6", "p-8", "p-12"],
+      "philosophy": "Dense but organized. Internal padding of p-6 for containers."
+    }
+  },
+  "components": {
+    "library": "shadcn/ui",
+    "customization": [
+      "Radius: 0.3rem (rounded-md) - slightly squared",
+      "Buttons: Sharp or slightly rounded, high contrast",
+      "Inputs: Slate 100 background, focus ring Emerald 500",
+      "Cards: Flat, 1px border, no shadow default"
+    ],
+    "specific_rules": [
+      "Use Shadcn Calendar for dates",
+      "Use Shadcn Dropdown for selects",
+      "Use Sonner for toasts",
+      "Do not use native HTML inputs for forms"
+    ]
+  },
+  "media": {
+    "image_urls": {
+      "avatars": [
+        {
+          "url": "https://images.unsplash.com/photo-1672685667592-0392f458f46f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc2NjUzMDIxM3ww&ixlib=rb-4.1.0&q=85",
+          "description": "Male employee avatar (Hoodie/Casual)"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1655249493799-9cee4fe983bb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc2NjUzMDIxM3ww&ixlib=rb-4.1.0&q=85",
+          "description": "Employee avatar (Grey sweater)"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1655249481446-25d575f1c054?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc2NjUzMDIxM3ww&ixlib=rb-4.1.0&q=85",
+          "description": "Female employee avatar (Blue dress)"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1576558656222-ba66febe3dec?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc2NjUzMDIxM3ww&ixlib=rb-4.1.0&q=85",
+          "description": "Male employee avatar (Grey jacket)"
+        }
+      ],
+      "logo": {
+        "url": "https://images.unsplash.com/photo-1629100551267-cae95686d737?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3MjQyMTd8MHwxfHNlYXJjaHwyfHxtaW5pbWFsaXN0JTIwZ2VvbWV0cmljJTIwYnVzaW5lc3MlMjBsb2dvfGVufDB8fHx8MTc2NjUzMDIxNnww&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract geometric logo (Pink/White Y shape)"
+      }
+    }
+  },
+  "motion": {
+    "strategy": "Fast & Precise",
+    "rules": [
+      "Duration: 200ms for most interactions",
+      "Easing: ease-out",
+      "Micro-interactions: Hover states must be explicit (text color change, border darken)",
+      "No bouncy springs for this financial context. Keep it snappy."
+    ]
+  },
+  "accessibility": {
+    "rules": [
+      "Contrast: Text must meet APCA standards",
+      "Focus: Visible focus rings (Emerald 500) on all interactive elements",
+      "Data-testid: All interactive elements must have data-testid attributes"
+    ]
+  },
+  "universal_guidelines": [
+    "Do not use gradients for backgrounds, use solid colors or subtle noise",
+    "Do not center align the app container",
+    "Use named exports for components, default exports for pages",
+    "Use sonner for toasts",
+    "Use lucide-react for icons",
+    "Ensure all currency is formatted as British Pound (£)",
+    "Use 'Control Room' density for tables - avoid excessive whitespace in data rows"
+  ]
+}
