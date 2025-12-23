@@ -1,4 +1,4 @@
-/* Payroll System Styles */
+/* Payroll System Styles - Right Service Group Theme */
 
 .tracking-tight {
     letter-spacing: -0.025em;
@@ -14,8 +14,8 @@
 }
 
 .card-hover:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border-color: #CBD5E1;
+    box-shadow: 0 4px 12px rgba(15, 100, 168, 0.12);
+    border-color: #41BDF0;
 }
 
 /* Stat card */
@@ -24,7 +24,7 @@
     font-size: 1.875rem;
     font-weight: 700;
     line-height: 1;
-    color: #0F172A;
+    color: #0F64A8;
 }
 
 .stat-label {
@@ -60,12 +60,12 @@
 }
 
 .payroll-table tr:hover td {
-    background: #F8FAFC;
+    background: #F0F9FF;
 }
 
 /* Amount positive/negative */
 .amount-positive {
-    color: #10B981;
+    color: #3AB09E;
 }
 
 .amount-negative {
@@ -86,13 +86,13 @@
 }
 
 .nav-item:hover {
-    color: #0F172A;
-    background: #F1F5F9;
+    color: #0F64A8;
+    background: #F0F9FF;
 }
 
 .nav-item.active {
-    color: #0F172A;
-    background: #F1F5F9;
+    color: #0F64A8;
+    background: #E0F2FE;
 }
 
 /* Badge */
@@ -110,9 +110,19 @@
     color: #059669;
 }
 
+.badge-teal {
+    background: #CCFBF1;
+    color: #3AB09E;
+}
+
 .badge-slate {
     background: #F1F5F9;
     color: #475569;
+}
+
+.badge-blue {
+    background: #DBEAFE;
+    color: #0F64A8;
 }
 
 /* Form input styles */
@@ -128,8 +138,8 @@
 
 .form-input:focus {
     background: #FFFFFF;
-    border-color: #10B981;
-    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
+    border-color: #41BDF0;
+    box-shadow: 0 0 0 2px rgba(65, 189, 240, 0.2);
 }
 
 .form-label {

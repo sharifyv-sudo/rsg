@@ -22,27 +22,27 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 @layer base {
     :root {
         --background: 210 40% 98%;
-        --foreground: 222 47% 11%;
+        --foreground: 210 50% 20%;
         --card: 0 0% 100%;
-        --card-foreground: 222 47% 11%;
+        --card-foreground: 210 50% 20%;
         --popover: 0 0% 100%;
-        --popover-foreground: 222 47% 11%;
-        --primary: 222 47% 11%;
+        --popover-foreground: 210 50% 20%;
+        --primary: 207 83% 36%;
         --primary-foreground: 0 0% 100%;
-        --secondary: 210 40% 96%;
-        --secondary-foreground: 222 47% 11%;
+        --secondary: 195 90% 60%;
+        --secondary-foreground: 210 50% 15%;
         --muted: 210 40% 96%;
-        --muted-foreground: 215 16% 47%;
-        --accent: 160 84% 39%;
+        --muted-foreground: 210 20% 45%;
+        --accent: 170 50% 46%;
         --accent-foreground: 0 0% 100%;
         --destructive: 0 84% 60%;
         --destructive-foreground: 0 0% 100%;
-        --border: 214 32% 91%;
-        --input: 214 32% 91%;
-        --ring: 160 84% 39%;
-        --chart-1: 160 84% 39%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
+        --border: 210 30% 88%;
+        --input: 210 30% 88%;
+        --ring: 207 83% 36%;
+        --chart-1: 207 83% 36%;
+        --chart-2: 195 90% 60%;
+        --chart-3: 170 50% 46%;
         --chart-4: 43 74% 66%;
         --chart-5: 27 87% 67%;
         --radius: 0.3rem;
@@ -69,12 +69,12 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #CBD5E1;
+    background: #0F64A8;
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #94A3B8;
+    background: #41BDF0;
 }
 
 /* Currency formatting */
@@ -92,13 +92,21 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 input:focus, select:focus, textarea:focus, button:focus {
     outline: none;
     ring: 2px;
-    ring-color: hsl(160, 84%, 39%);
+    ring-color: #0F64A8;
 }
 
 /* Transition defaults */
 .transition-fast {
     transition: all 200ms ease-out;
 }
+
+/* RSG Brand Colors */
+.bg-rsg-blue { background-color: #0F64A8; }
+.bg-rsg-cyan { background-color: #41BDF0; }
+.bg-rsg-teal { background-color: #3AB09E; }
+.text-rsg-blue { color: #0F64A8; }
+.text-rsg-cyan { color: #41BDF0; }
+.text-rsg-teal { color: #3AB09E; }
 
 @layer base {
     [data-debug-wrapper="true"] {
