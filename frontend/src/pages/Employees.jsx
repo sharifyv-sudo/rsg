@@ -256,8 +256,8 @@ export default function Employees() {
                     <th>Name</th>
                     <th>Department</th>
                     <th>Position</th>
+                    <th>Contract</th>
                     <th>Annual Salary</th>
-                    <th>Tax Code</th>
                     <th className="w-12"></th>
                   </tr>
                 </thead>
@@ -274,11 +274,15 @@ export default function Employees() {
                         <span className="badge badge-slate">{employee.department}</span>
                       </td>
                       <td>{employee.position}</td>
+                      <td>
+                        {getContractName(employee.contract_id) ? (
+                          <span className="badge badge-emerald">{getContractName(employee.contract_id)}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Unassigned</span>
+                        )}
+                      </td>
                       <td className="font-mono text-emerald-600 font-medium">
                         {formatCurrency(employee.annual_salary)}
-                      </td>
-                      <td className="font-mono text-sm text-muted-foreground">
-                        {employee.tax_code || "1257L"}
                       </td>
                       <td>
                         <DropdownMenu>
