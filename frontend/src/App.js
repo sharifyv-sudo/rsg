@@ -1,16 +1,18 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
-import { LayoutDashboard, Users, FileText, PoundSterling } from "lucide-react";
+import { LayoutDashboard, Users, FileText, PoundSterling, Briefcase } from "lucide-react";
 import Dashboard from "@/pages/Dashboard";
 import Employees from "@/pages/Employees";
 import Payslips from "@/pages/Payslips";
+import Contracts from "@/pages/Contracts";
 
 const Sidebar = () => {
   const location = useLocation();
   
   const navItems = [
     { path: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { path: "/contracts", icon: Briefcase, label: "Contracts" },
     { path: "/employees", icon: Users, label: "Employees" },
     { path: "/payslips", icon: FileText, label: "Payslips" },
   ];
@@ -63,6 +65,7 @@ function App() {
         <main className="flex-1 overflow-auto">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/contracts" element={<Contracts />} />
             <Route path="/employees" element={<Employees />} />
             <Route path="/payslips" element={<Payslips />} />
           </Routes>
