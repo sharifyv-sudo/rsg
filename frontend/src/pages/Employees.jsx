@@ -421,11 +421,28 @@ export default function Employees() {
                     type="number"
                     min="0"
                     step="100"
-                  value={formData.annual_salary}
-                  onChange={(e) => setFormData({ ...formData, annual_salary: e.target.value })}
-                  required
-                  data-testid="employee-salary-input"
-                />
+                    value={formData.annual_salary}
+                    onChange={(e) => setFormData({ ...formData, annual_salary: e.target.value })}
+                    required
+                    data-testid="employee-salary-input"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="availability">Availability</Label>
+                  <Select
+                    value={formData.availability}
+                    onValueChange={(value) => setFormData({ ...formData, availability: value })}
+                  >
+                    <SelectTrigger data-testid="employee-availability-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AVAILABILITY_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div>
