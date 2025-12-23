@@ -405,6 +405,26 @@ export default function Employees() {
                 />
               </div>
 
+              <div>
+                <Label htmlFor="contract">Assign to Contract</Label>
+                <Select
+                  value={formData.contract_id}
+                  onValueChange={(value) => setFormData({ ...formData, contract_id: value === "none" ? "" : value })}
+                >
+                  <SelectTrigger data-testid="employee-contract-select">
+                    <SelectValue placeholder="Select contract (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Contract</SelectItem>
+                    {contracts.filter(c => c.status === "active").map((contract) => (
+                      <SelectItem key={contract.id} value={contract.id}>
+                        {contract.name} ({contract.client})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="border-t pt-4">
                 <p className="text-sm font-medium text-muted-foreground mb-3">Optional Details</p>
                 <div className="grid grid-cols-2 gap-4">
