@@ -117,6 +117,9 @@ class PayrollAPITester:
         }
         
         success, response = self.run_test("Create Second Employee", "POST", "employees", 200, employee_data)
+        if success and 'id' in response:
+            self.second_employee_id = response['id']
+            print(f"   Created second employee ID: {self.second_employee_id}")
         return success, response
 
     def test_dashboard_stats(self):
