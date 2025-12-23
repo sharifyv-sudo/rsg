@@ -21,12 +21,14 @@ const Sidebar = () => {
     <aside className="w-64 min-h-screen bg-white border-r border-border flex flex-col" data-testid="sidebar">
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-md bg-emerald-500 flex items-center justify-center">
-            <PoundSterling className="w-6 h-6 text-white" />
-          </div>
+          <img 
+            src="https://customer-assets.emergentagent.com/job_payroll-gbp/artifacts/3i59dflc_Picture1.jpg" 
+            alt="Right Service Group Logo" 
+            className="w-12 h-12 object-contain"
+          />
           <div>
-            <h1 className="font-heading font-bold text-lg text-foreground tracking-tight">Right Service Group</h1>
-            <p className="text-xs text-muted-foreground">British Pound (£)</p>
+            <h1 className="font-heading font-bold text-base text-foreground tracking-tight leading-tight">Right Service Group</h1>
+            <p className="text-xs text-muted-foreground">Payroll System</p>
           </div>
         </div>
       </div>
