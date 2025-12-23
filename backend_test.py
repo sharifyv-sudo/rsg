@@ -113,10 +113,12 @@ class PayrollAPITester:
         employee_data = {
             "name": "Jane Doe",
             "email": "jane.doe@company.com",
+            "phone": "07987654321",
             "department": "Marketing",
             "position": "Marketing Manager",
             "annual_salary": 45000.0,
-            "tax_code": "1257L"
+            "tax_code": "1257L",
+            "availability": "available"
         }
         
         success, response = self.run_test("Create Second Employee", "POST", "employees", 200, employee_data)
