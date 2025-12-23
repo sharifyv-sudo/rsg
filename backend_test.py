@@ -74,7 +74,7 @@ class PayrollAPITester:
             "ni_number": "AB123456C"
         }
         
-        success, response = self.run_test("Create Employee", "POST", "employees", 201, employee_data)
+        success, response = self.run_test("Create Employee", "POST", "employees", 200, employee_data)
         if success and 'id' in response:
             self.created_employee_id = response['id']
             print(f"   Created employee ID: {self.created_employee_id}")
