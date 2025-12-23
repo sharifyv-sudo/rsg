@@ -120,6 +120,7 @@ export default function Employees() {
       setFormData({
         name: employee.name,
         email: employee.email,
+        phone: employee.phone || "",
         department: employee.department,
         position: employee.position,
         annual_salary: employee.annual_salary.toString(),
@@ -127,7 +128,8 @@ export default function Employees() {
         bank_account: employee.bank_account || "",
         sort_code: employee.sort_code || "",
         tax_code: employee.tax_code || "1257L",
-        ni_number: employee.ni_number || ""
+        ni_number: employee.ni_number || "",
+        availability: employee.availability || "available"
       });
     } else {
       setEditingEmployee(null);
