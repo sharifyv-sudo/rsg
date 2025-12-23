@@ -68,13 +68,15 @@ class PayrollAPITester:
         employee_data = {
             "name": "John Smith",
             "email": "john.smith@company.com",
+            "phone": "07123456789",
             "department": "Engineering",
             "position": "Software Developer",
             "annual_salary": 50000.0,
             "bank_account": "12345678",
             "sort_code": "12-34-56",
             "tax_code": "1257L",
-            "ni_number": "AB123456C"
+            "ni_number": "AB123456C",
+            "availability": "available"
         }
         
         success, response = self.run_test("Create Employee", "POST", "employees", 200, employee_data)
