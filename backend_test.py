@@ -446,8 +446,7 @@ class PayrollAPITester:
 
     def test_employee_availability_conflict(self):
         """Test that assigned employees show as unavailable for same date"""
-        params = {"job_date": "2025-09-15"}
-        success, response = self.run_test("Check Employee Availability Conflicts", "GET", "employees/available", 200, params=params)
+        success, response = self.run_test("Check Employee Availability Conflicts", "GET", "employees/available?job_date=2025-09-15", 200)
         
         if success and response:
             assigned_employees = [emp for emp in response if emp.get('is_assigned_on_date', False)]
