@@ -511,27 +511,6 @@ async def export_job_staff_list(job_id: str):
         "company": "Right Service Group"
     }
 
-@api_router.get("/employees/available")
-async def get_available_employees(job_date: Optional[str] = None):
-    """Get employees with their availability status for a given date"""
-    employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
-    
-    # Get all jobs on that date to check who's already assigned
-    assigned_employee_ids = set()
-    if job_date:
-        jobs_on_date = await db.jobs.find({"date": job_date}, {"_id": 0}).to_list(1000)
-        for job in jobs_on_date:
-            for assigned in job.get('assigned_employees', []):
-                assigned_employee_ids.add(assigned.get('employee_id'))
-    
-    # Add assignment status to employees
-    for emp in employees:
-        emp['is_assigned_on_date'] = emp['id'] in assigned_employee_ids
-        if isinstance(emp.get('created_at'), str):
-            emp['created_at'] = datetime.fromisoformat(emp['created_at'])
-    
-    return employees
-
 # ========== Dashboard Endpoint ==========
 
 @api_router.get("/dashboard", response_model=DashboardStats)
