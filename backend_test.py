@@ -562,7 +562,7 @@ class PayrollAPITester:
         print(f"📈 Success Rate: {success_rate:.1f}%")
         
         if success_rate >= 90:
-            print("🎉 Excellent! Backend API (including Contracts) is working well")
+            print("🎉 Excellent! Backend API (including Contracts & Job Assignments) is working well")
         elif success_rate >= 70:
             print("⚠️  Good, but some issues need attention")
         else:
