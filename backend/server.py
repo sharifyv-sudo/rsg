@@ -63,6 +63,7 @@ class Employee(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     email: str
+    phone: Optional[str] = None  # Contact number
     department: str
     position: str
     annual_salary: float  # In GBP
@@ -71,11 +72,13 @@ class Employee(BaseModel):
     sort_code: Optional[str] = None
     tax_code: Optional[str] = "1257L"  # Default UK tax code
     ni_number: Optional[str] = None
+    availability: str = "available"  # available, unavailable, on_leave
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class EmployeeCreate(BaseModel):
     name: str
     email: str
+    phone: Optional[str] = None
     department: str
     position: str
     annual_salary: float
@@ -84,10 +87,12 @@ class EmployeeCreate(BaseModel):
     sort_code: Optional[str] = None
     tax_code: Optional[str] = "1257L"
     ni_number: Optional[str] = None
+    availability: str = "available"
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     department: Optional[str] = None
     position: Optional[str] = None
     annual_salary: Optional[float] = None
@@ -96,6 +101,7 @@ class EmployeeUpdate(BaseModel):
     sort_code: Optional[str] = None
     tax_code: Optional[str] = None
     ni_number: Optional[str] = None
+    availability: Optional[str] = None
 
 class Deduction(BaseModel):
     name: str
