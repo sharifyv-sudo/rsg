@@ -115,6 +115,7 @@ export default function Employees() {
         department: employee.department,
         position: employee.position,
         annual_salary: employee.annual_salary.toString(),
+        contract_id: employee.contract_id || "",
         bank_account: employee.bank_account || "",
         sort_code: employee.sort_code || "",
         tax_code: employee.tax_code || "1257L",
@@ -139,7 +140,8 @@ export default function Employees() {
 
     const payload = {
       ...formData,
-      annual_salary: parseFloat(formData.annual_salary)
+      annual_salary: parseFloat(formData.annual_salary),
+      contract_id: formData.contract_id || null
     };
 
     try {
@@ -151,7 +153,7 @@ export default function Employees() {
         toast.success("Employee added successfully");
       }
       handleCloseDialog();
-      fetchEmployees();
+      fetchData();
     } catch (error) {
       console.error("Error saving employee:", error);
       toast.error(error.response?.data?.detail || "Failed to save employee");
