@@ -133,6 +133,63 @@ class DashboardStats(BaseModel):
     departments: List[dict]
     recent_payslips: List[dict]
 
+# ========== Job/Event Models ==========
+
+JOB_TYPES = ["Steward", "Security", "Event Staff", "Hospitality", "Cleaning", "Parking", "Other"]
+
+class AssignedEmployee(BaseModel):
+    employee_id: str
+    employee_name: str
+    position: str
+    phone: Optional[str] = None
+
+class Job(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str  # e.g., "Arsenal vs Chelsea - Emirates Stadium"
+    client: str  # Client name
+    date: str  # Job date (ISO string)
+    location: str
+    start_time: str  # e.g., "09:00"
+    end_time: str  # e.g., "18:00"
+    job_type: str  # Steward, Security, etc.
+    staff_required: int
+    hourly_rate: float  # Pay rate per hour in GBP
+    notes: Optional[str] = None
+    assigned_employees: List[AssignedEmployee] = []
+    status: str = "upcoming"  # upcoming, in_progress, completed, cancelled
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class JobCreate(BaseModel):
+    name: str
+    client: str
+    date: str
+    location: str
+    start_time: str
+    end_time: str
+    job_type: str
+    staff_required: int
+    hourly_rate: float
+    notes: Optional[str] = None
+    status: str = "upcoming"
+
+class JobUpdate(BaseModel):
+    name: Optional[str] = None
+    client: Optional[str] = None
+    date: Optional[str] = None
+    location: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    job_type: Optional[str] = None
+    staff_required: Optional[int] = None
+    hourly_rate: Optional[float] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+
+class AssignEmployeesRequest(BaseModel):
+    employee_ids: List[str]
+
 # ========== Employee Endpoints ==========
 
 @api_router.get("/")
