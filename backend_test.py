@@ -519,6 +519,21 @@ class PayrollAPITester:
         self.test_contract_with_employees()
         self.test_contracts_list_with_calculations()
         
+        # Job Assignment tests
+        print("\n" + "=" * 40)
+        print("📅 TESTING JOB ASSIGNMENTS FEATURE")
+        print("=" * 40)
+        self.test_get_jobs_empty()
+        self.test_create_job()
+        self.test_get_jobs_with_data()
+        self.test_get_job_by_id()
+        self.test_update_job()
+        self.test_get_available_employees()
+        self.test_assign_employees_to_job()
+        self.test_export_job_staff_list()
+        self.test_create_second_job()
+        self.test_employee_availability_conflict()
+        
         # Dashboard tests
         self.test_dashboard_stats()
         
