@@ -389,13 +389,8 @@ class PayrollAPITester:
 
     def test_get_available_employees(self):
         """Test getting available employees for job assignment"""
-        if not self.created_job_id:
-            print("❌ Skipped - No job ID available")
-            return False, {}
-        
         # Test with job date parameter
-        params = {"job_date": "2025-09-15"}
-        return self.run_test("Get Available Employees", "GET", "employees/available", 200, params=params)
+        return self.run_test("Get Available Employees", "GET", "employees/available?job_date=2025-09-15", 200)
 
     def test_assign_employees_to_job(self):
         """Test assigning employees to a job"""
