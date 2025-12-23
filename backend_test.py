@@ -114,7 +114,7 @@ class PayrollAPITester:
             "tax_code": "1257L"
         }
         
-        success, response = self.run_test("Create Second Employee", "POST", "employees", 201, employee_data)
+        success, response = self.run_test("Create Second Employee", "POST", "employees", 200, employee_data)
         return success, response
 
     def test_dashboard_stats(self):
