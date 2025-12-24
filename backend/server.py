@@ -257,15 +257,237 @@ async def login(request: LoginRequest):
         return LoginResponse(
             success=True,
             message="Login successful",
-            token=token
+            token=token,
+            user_type="admin",
+            user_id="admin",
+            user_name="Administrator"
         )
-    else:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Check if it's a staff member login
+    employee = await db.employees.find_one({"email": {"$regex": f"^{request.email}$", "$options": "i"}}, {"_id": 0})
+    if employee:
+        # Check password - use stored hash or default
+        stored_hash = employee.get('password_hash')
+        if not stored_hash:
+            # Use default password for new staff
+            stored_hash = hashlib.sha256(DEFAULT_STAFF_PASSWORD.encode()).hexdigest()
+        
+        if password_hash == stored_hash:
+            token = hashlib.sha256(f"{request.email}{datetime.now(timezone.utc).isoformat()}".encode()).hexdigest()
+            return LoginResponse(
+                success=True,
+                message="Login successful",
+                token=token,
+                user_type="staff",
+                user_id=employee['id'],
+                user_name=employee['name']
+            )
+    
+    raise HTTPException(status_code=401, detail="Invalid email or password")
 
 @api_router.get("/auth/verify")
 async def verify_token():
     """Verify if user is authenticated (token checked on frontend)"""
     return {"valid": True}
+
+# ========== Staff Portal Endpoints ==========
+
+@api_router.get("/staff/{employee_id}/jobs")
+async def get_staff_assigned_jobs(employee_id: str):
+    """Get jobs assigned to a specific staff member"""
+    jobs = await db.jobs.find({}, {"_id": 0}).to_list(1000)
+    assigned_jobs = []
+    for job in jobs:
+        for emp in job.get('assigned_employees', []):
+            if emp.get('employee_id') == employee_id:
+                assigned_jobs.append(job)
+                break
+    return assigned_jobs
+
+@api_router.get("/staff/{employee_id}/available-jobs")
+async def get_available_jobs_for_staff(employee_id: str):
+    """Get jobs that staff can sign up for (upcoming, not full, not already assigned)"""
+    jobs = await db.jobs.find({"status": "upcoming"}, {"_id": 0}).to_list(1000)
+    available_jobs = []
+    for job in jobs:
+        assigned_ids = [e.get('employee_id') for e in job.get('assigned_employees', [])]
+        # Show jobs that aren't full and staff isn't already assigned to
+        if len(assigned_ids) < job.get('staff_required', 0) and employee_id not in assigned_ids:
+            job['spots_remaining'] = job.get('staff_required', 0) - len(assigned_ids)
+            available_jobs.append(job)
+    return available_jobs
+
+@api_router.post("/staff/{employee_id}/signup-job")
+async def staff_signup_for_job(employee_id: str, request: JobSignupRequest):
+    """Staff member signs up for an available job"""
+    # Get the employee
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Get the job
+    job = await db.jobs.find_one({"id": request.job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Check if already assigned
+    assigned_ids = [e.get('employee_id') for e in job.get('assigned_employees', [])]
+    if employee_id in assigned_ids:
+        raise HTTPException(status_code=400, detail="Already signed up for this job")
+    
+    # Check if job is full
+    if len(assigned_ids) >= job.get('staff_required', 0):
+        raise HTTPException(status_code=400, detail="Job is fully staffed")
+    
+    # Add employee to job
+    new_assignment = {
+        "employee_id": employee['id'],
+        "employee_name": employee['name'],
+        "position": employee['position'],
+        "phone": employee.get('phone', '')
+    }
+    
+    await db.jobs.update_one(
+        {"id": request.job_id},
+        {"$push": {"assigned_employees": new_assignment}}
+    )
+    
+    return {"message": "Successfully signed up for job", "job_name": job['name']}
+
+@api_router.post("/staff/{employee_id}/withdraw-job/{job_id}")
+async def staff_withdraw_from_job(employee_id: str, job_id: str):
+    """Staff member withdraws from a job"""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Remove employee from assigned list
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$pull": {"assigned_employees": {"employee_id": employee_id}}}
+    )
+    
+    return {"message": "Successfully withdrawn from job"}
+
+@api_router.get("/staff/{employee_id}/payslips")
+async def get_staff_payslips(employee_id: str):
+    """Get payslips for a specific staff member"""
+    payslips = await db.payslips.find({"employee_id": employee_id}, {"_id": 0}).to_list(100)
+    for ps in payslips:
+        if isinstance(ps.get('created_at'), str):
+            ps['created_at'] = datetime.fromisoformat(ps['created_at'])
+    return sorted(payslips, key=lambda x: (x.get('period_year', 0), x.get('period_month', 0)), reverse=True)
+
+@api_router.get("/staff/{employee_id}/timeclock")
+async def get_staff_timeclock(employee_id: str):
+    """Get time clock entries for a staff member"""
+    entries = await db.timeclock.find({"employee_id": employee_id}, {"_id": 0}).to_list(100)
+    return sorted(entries, key=lambda x: x.get('clock_in', ''), reverse=True)
+
+@api_router.post("/staff/{employee_id}/clock-in")
+async def staff_clock_in(employee_id: str, request: ClockInRequest):
+    """Staff member clocks in"""
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Check if already clocked in today
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    existing = await db.timeclock.find_one({
+        "employee_id": employee_id,
+        "date": today,
+        "clock_out": None
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Already clocked in today")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Get job name if provided
+    job_name = None
+    if request.job_id:
+        job = await db.jobs.find_one({"id": request.job_id}, {"_id": 0})
+        if job:
+            job_name = job.get('name')
+    
+    entry = {
+        "id": str(uuid.uuid4()),
+        "employee_id": employee_id,
+        "employee_name": employee['name'],
+        "clock_in": now,
+        "clock_out": None,
+        "date": today,
+        "hours_worked": None,
+        "job_id": request.job_id,
+        "job_name": job_name,
+        "notes": request.notes
+    }
+    
+    await db.timeclock.insert_one(entry)
+    return {"message": "Clocked in successfully", "clock_in": now}
+
+@api_router.post("/staff/{employee_id}/clock-out")
+async def staff_clock_out(employee_id: str, request: ClockOutRequest):
+    """Staff member clocks out"""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    
+    # Find open clock-in entry
+    entry = await db.timeclock.find_one({
+        "employee_id": employee_id,
+        "date": today,
+        "clock_out": None
+    })
+    
+    if not entry:
+        raise HTTPException(status_code=400, detail="No active clock-in found for today")
+    
+    now = datetime.now(timezone.utc)
+    clock_in_time = datetime.fromisoformat(entry['clock_in'].replace('Z', '+00:00'))
+    hours_worked = round((now - clock_in_time).total_seconds() / 3600, 2)
+    
+    await db.timeclock.update_one(
+        {"id": entry['id']},
+        {"$set": {
+            "clock_out": now.isoformat(),
+            "hours_worked": hours_worked,
+            "notes": request.notes or entry.get('notes')
+        }}
+    )
+    
+    return {"message": "Clocked out successfully", "hours_worked": hours_worked}
+
+@api_router.get("/staff/{employee_id}/status")
+async def get_staff_clock_status(employee_id: str):
+    """Check if staff is currently clocked in"""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    entry = await db.timeclock.find_one({
+        "employee_id": employee_id,
+        "date": today,
+        "clock_out": None
+    }, {"_id": 0})
+    
+    return {
+        "is_clocked_in": entry is not None,
+        "current_entry": entry
+    }
+
+@api_router.post("/staff/{employee_id}/change-password")
+async def staff_change_password(employee_id: str, old_password: str, new_password: str):
+    """Staff member changes their password"""
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Verify old password
+    stored_hash = employee.get('password_hash') or hashlib.sha256(DEFAULT_STAFF_PASSWORD.encode()).hexdigest()
+    if hashlib.sha256(old_password.encode()).hexdigest() != stored_hash:
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    
+    # Update password
+    new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    await db.employees.update_one({"id": employee_id}, {"$set": {"password_hash": new_hash}})
+    
+    return {"message": "Password changed successfully"}
 
 # ========== Employee Endpoints ==========
 
@@ -275,7 +497,7 @@ async def root():
 
 @api_router.get("/employees")
 async def get_employees():
-    employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
+    employees = await db.employees.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
     for emp in employees:
         if isinstance(emp.get('created_at'), str):
             emp['created_at'] = datetime.fromisoformat(emp['created_at'])
@@ -284,7 +506,7 @@ async def get_employees():
 @api_router.get("/employees/available")
 async def get_available_employees(job_date: Optional[str] = None):
     """Get employees with their availability status for a given date"""
-    employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
+    employees = await db.employees.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
     
     # Get all jobs on that date to check who's already assigned
     assigned_employee_ids = set()
