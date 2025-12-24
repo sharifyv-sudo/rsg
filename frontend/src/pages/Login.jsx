@@ -29,7 +29,7 @@ export default function Login({ onLoginSuccess }) {
         // Store auth token
         localStorage.setItem("rsg_auth_token", response.data.token);
         localStorage.setItem("rsg_auth_email", email);
-        onLoginSuccess();
+        onLoginSuccess(response.data);
       }
     } catch (err) {
       setError(err.response?.data?.detail || "Invalid email or password");
