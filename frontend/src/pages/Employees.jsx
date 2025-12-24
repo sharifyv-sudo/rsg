@@ -25,29 +25,29 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, MoreHorizontal, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Search, Clock } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const DEPARTMENTS = [
-  "Engineering",
-  "Marketing",
-  "Sales",
-  "Finance",
-  "Human Resources",
+  "Stewarding",
+  "Security",
+  "Event Staff",
+  "Hospitality",
+  "Cleaning",
+  "Parking",
   "Operations",
-  "Customer Support",
-  "Design",
-  "Legal",
+  "Management",
   "Other"
 ];
 
 const formatCurrency = (amount) => {
+  if (!amount) return '-';
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency: 'GBP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
   }).format(amount);
 };
 
@@ -57,7 +57,7 @@ const initialFormData = {
   phone: "",
   department: "",
   position: "",
-  annual_salary: "",
+  hourly_rate: "",
   contract_id: "",
   bank_account: "",
   sort_code: "",
@@ -75,6 +75,7 @@ const AVAILABILITY_OPTIONS = [
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
   const [contracts, setContracts] = useState([]);
+  const [hoursWorked, setHoursWorked] = useState({});
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
