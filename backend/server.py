@@ -191,6 +191,24 @@ class DashboardStats(BaseModel):
 
 JOB_TYPES = ["Steward", "Security", "Event Staff", "Hospitality", "Cleaning", "Parking", "Other"]
 
+# Maximum distance in meters for clock in/out
+MAX_CLOCK_DISTANCE_METERS = 500
+
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance between two GPS coordinates in meters using Haversine formula"""
+    import math
+    R = 6371000  # Earth's radius in meters
+    
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_phi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    
+    return R * c
+
 class AssignedEmployee(BaseModel):
     employee_id: str
     employee_name: str
@@ -205,6 +223,8 @@ class Job(BaseModel):
     client: str  # Client name
     date: str  # Job date (ISO string)
     location: str
+    latitude: Optional[float] = None  # GPS latitude
+    longitude: Optional[float] = None  # GPS longitude
     start_time: str  # e.g., "09:00"
     end_time: str  # e.g., "18:00"
     job_type: str  # Steward, Security, etc.
