@@ -273,6 +273,9 @@ class JobUpdate(BaseModel):
     hourly_rate: Optional[float] = None
     notes: Optional[str] = None
     status: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    require_location: Optional[bool] = None
 
 class AssignEmployeesRequest(BaseModel):
     employee_ids: List[str]
