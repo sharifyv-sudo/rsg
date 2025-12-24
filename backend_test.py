@@ -13,6 +13,8 @@ class PayrollAPITester:
         self.created_contract_id = None
         self.second_employee_id = None
         self.created_job_id = None
+        self.gps_job_id = None
+        self.incomplete_gps_job_id = None
 
     def run_test(self, name, method, endpoint, expected_status, data=None, params=None):
         """Run a single API test"""
