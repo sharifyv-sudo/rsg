@@ -31,13 +31,19 @@ app = FastAPI()
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-# ========== Auth Configuration ==========
-# Admin credentials
-ADMIN_EMAIL = "info@rightservicegroup.co.uk"
-ADMIN_PASSWORD_HASH = hashlib.sha256("LondonE7".encode()).hexdigest()
+# ========== Health Check Endpoint (Required for Kubernetes) ==========
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Kubernetes deployment"""
+    return {"status": "healthy", "service": "right-service-group-api"}
 
-# Default password for new staff members
-DEFAULT_STAFF_PASSWORD = "RSG2025"
+# ========== Auth Configuration ==========
+# Admin credentials - loaded from environment variables
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'info@rightservicegroup.co.uk')
+ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', hashlib.sha256("LondonE7".encode()).hexdigest())
+
+# Default password for new staff members - loaded from environment
+DEFAULT_STAFF_PASSWORD = os.environ.get('DEFAULT_STAFF_PASSWORD', 'RSG2025')
 
 class LoginRequest(BaseModel):
     email: str
