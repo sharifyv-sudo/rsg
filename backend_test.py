@@ -1436,8 +1436,10 @@ class PayrollAPITester:
         self.test_job_error_cases()
         self.test_staff_error_cases()
         self.test_invoice_error_cases()
+        self.test_timesheet_error_cases()
         
         # Cleanup tests
+        self.test_delete_timesheet()
         self.test_delete_invoice()
         self.test_delete_payslip()
         self.test_delete_job()
