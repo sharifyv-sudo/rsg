@@ -286,6 +286,233 @@ class JobUpdate(BaseModel):
 class AssignEmployeesRequest(BaseModel):
     employee_ids: List[str]
 
+# ========== Invoice Models ==========
+
+INVOICE_STATUS = ["draft", "sent", "paid", "overdue", "cancelled"]
+
+class InvoiceItem(BaseModel):
+    description: str
+    quantity: float = 1
+    unit_price: float
+    total: float = 0
+
+class Invoice(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    invoice_number: str  # e.g., INV-2025-001
+    client_name: str
+    client_email: Optional[str] = None
+    job_id: Optional[str] = None  # Link to job if auto-generated
+    job_name: Optional[str] = None
+    contract_id: Optional[str] = None  # Link to contract
+    items: List[InvoiceItem] = []
+    subtotal: float = 0
+    tax_rate: float = 0  # VAT percentage (e.g., 20 for 20%)
+    tax_amount: float = 0
+    total_amount: float = 0
+    issue_date: str  # ISO date
+    due_date: str  # ISO date
+    status: str = "draft"  # draft, sent, paid, overdue, cancelled
+    payment_date: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class InvoiceCreate(BaseModel):
+    client_name: str
+    client_email: Optional[str] = None
+    job_id: Optional[str] = None
+    contract_id: Optional[str] = None
+    items: List[InvoiceItem] = []
+    tax_rate: float = 20  # Default UK VAT
+    issue_date: str
+    due_date: str
+    notes: Optional[str] = None
+
+class InvoiceUpdate(BaseModel):
+    client_name: Optional[str] = None
+    client_email: Optional[str] = None
+    items: Optional[List[InvoiceItem]] = None
+    tax_rate: Optional[float] = None
+    issue_date: Optional[str] = None
+    due_date: Optional[str] = None
+    status: Optional[str] = None
+    payment_date: Optional[str] = None
+    notes: Optional[str] = None
+
+# ========== Email Helper Functions ==========
+
+async def send_email_async(to_email: str, subject: str, html_content: str):
+    """Send email asynchronously using Resend"""
+    try:
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content
+        }
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        return {"success": True, "email_id": result.get("id")}
+    except Exception as e:
+        logging.error(f"Failed to send email to {to_email}: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+def generate_shift_assignment_email(employee_name: str, job: dict) -> str:
+    """Generate HTML email for shift assignment notification"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: #0F64A8; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 20px; background: #f9f9f9; }}
+            .job-details {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; }}
+            .detail-row {{ display: flex; padding: 8px 0; border-bottom: 1px solid #eee; }}
+            .label {{ font-weight: bold; color: #666; width: 120px; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+            .button {{ background: #0F64A8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 15px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Right Service Group</h1>
+                <p>New Shift Assignment</p>
+            </div>
+            <div class="content">
+                <p>Hi {employee_name},</p>
+                <p>You have been assigned to a new shift. Please see the details below:</p>
+                
+                <div class="job-details">
+                    <h3 style="color: #0F64A8; margin-top: 0;">{job.get('name', 'N/A')}</h3>
+                    <div class="detail-row">
+                        <span class="label">Client:</span>
+                        <span>{job.get('client', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Date:</span>
+                        <span>{job.get('date', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Time:</span>
+                        <span>{job.get('start_time', 'N/A')} - {job.get('end_time', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Location:</span>
+                        <span>{job.get('location', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Job Type:</span>
+                        <span>{job.get('job_type', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Hourly Rate:</span>
+                        <span>£{job.get('hourly_rate', 0):.2f}/hr</span>
+                    </div>
+                    {f'<div class="detail-row"><span class="label">Notes:</span><span>{job.get("notes")}</span></div>' if job.get('notes') else ''}
+                </div>
+                
+                <p>Please log in to the Staff Portal to confirm your availability and view more details.</p>
+                
+                <p style="color: #666; font-size: 14px;">
+                    {'<strong>📍 GPS Clock-in Required:</strong> You must be within 500m of the job location to clock in/out.' if job.get('require_location') else ''}
+                </p>
+            </div>
+            <div class="footer">
+                <p>Right Service Group | Professional Staffing Solutions</p>
+                <p>This is an automated message. Please do not reply directly to this email.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+def generate_invoice_email(invoice: dict, company_name: str = "Right Service Group") -> str:
+    """Generate HTML email for invoice"""
+    items_html = ""
+    for item in invoice.get('items', []):
+        items_html += f"""
+        <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">{item.get('description', '')}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">{item.get('quantity', 1)}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">£{item.get('unit_price', 0):.2f}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">£{item.get('total', 0):.2f}</td>
+        </tr>
+        """
+    
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 700px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: #0F64A8; color: white; padding: 20px; }}
+            .invoice-info {{ display: flex; justify-content: space-between; padding: 20px 0; }}
+            table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+            th {{ background: #f5f5f5; padding: 12px; text-align: left; }}
+            .totals {{ text-align: right; margin-top: 20px; }}
+            .total-row {{ padding: 8px 0; }}
+            .grand-total {{ font-size: 18px; font-weight: bold; color: #0F64A8; border-top: 2px solid #0F64A8; padding-top: 10px; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; border-top: 1px solid #eee; margin-top: 30px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1 style="margin: 0;">{company_name}</h1>
+                <p style="margin: 5px 0 0 0;">INVOICE</p>
+            </div>
+            
+            <div class="invoice-info">
+                <div>
+                    <p><strong>Bill To:</strong></p>
+                    <p>{invoice.get('client_name', 'N/A')}</p>
+                    <p>{invoice.get('client_email', '')}</p>
+                </div>
+                <div style="text-align: right;">
+                    <p><strong>Invoice #:</strong> {invoice.get('invoice_number', 'N/A')}</p>
+                    <p><strong>Issue Date:</strong> {invoice.get('issue_date', 'N/A')}</p>
+                    <p><strong>Due Date:</strong> {invoice.get('due_date', 'N/A')}</p>
+                    <p><strong>Status:</strong> <span style="color: {'#3AB09E' if invoice.get('status') == 'paid' else '#E74C3C' if invoice.get('status') == 'overdue' else '#F39C12'};">{invoice.get('status', 'draft').upper()}</span></p>
+                </div>
+            </div>
+            
+            {f"<p><strong>Related Job:</strong> {invoice.get('job_name', 'N/A')}</p>" if invoice.get('job_name') else ""}
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th style="text-align: center;">Qty</th>
+                        <th style="text-align: right;">Unit Price</th>
+                        <th style="text-align: right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {items_html}
+                </tbody>
+            </table>
+            
+            <div class="totals">
+                <div class="total-row">Subtotal: £{invoice.get('subtotal', 0):.2f}</div>
+                <div class="total-row">VAT ({invoice.get('tax_rate', 0)}%): £{invoice.get('tax_amount', 0):.2f}</div>
+                <div class="total-row grand-total">Total Due: £{invoice.get('total_amount', 0):.2f}</div>
+            </div>
+            
+            {f"<p><strong>Notes:</strong> {invoice.get('notes')}</p>" if invoice.get('notes') else ""}
+            
+            <div class="footer">
+                <p>{company_name} | Professional Staffing Solutions</p>
+                <p>Thank you for your business!</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
 # ========== Auth Endpoints ==========
 
 @api_router.post("/auth/login", response_model=LoginResponse)
