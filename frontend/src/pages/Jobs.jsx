@@ -367,9 +367,17 @@ export default function Jobs() {
                       <td>
                         <div>
                           <p className="font-medium">{job.name}</p>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                            <MapPin className="w-3 h-3" />
-                            {job.location}
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {job.location}
+                            </span>
+                            {job.require_location && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-medium">
+                                <MapPinned className="w-2.5 h-2.5" />
+                                GPS
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
