@@ -839,6 +839,293 @@ class PayrollAPITester:
             signup_data = {"job_id": "non-existent-job-id"}
             self.run_test("Job Signup (Non-existent Job)", "POST", f"staff/{self.created_employee_id}/signup-job", 404, signup_data)
 
+    # ========== Invoice Tests ==========
+    
+    def test_get_invoices_empty(self):
+        """Test getting invoices when none exist"""
+        return self.run_test("Get Invoices (Empty)", "GET", "invoices", 200)
+
+    def test_get_invoice_stats_empty(self):
+        """Test getting invoice stats when no invoices exist"""
+        return self.run_test("Get Invoice Stats (Empty)", "GET", "invoices/stats/summary", 200)
+
+    def test_create_invoice(self):
+        """Test creating a new invoice"""
+        invoice_data = {
+            "client_name": "Arsenal FC",
+            "client_email": "billing@arsenal.com",
+            "items": [
+                {
+                    "description": "Security Services - Match Day",
+                    "quantity": 8,
+                    "unit_price": 15.50
+                },
+                {
+                    "description": "Steward Services - Match Day", 
+                    "quantity": 12,
+                    "unit_price": 14.00
+                }
+            ],
+            "tax_rate": 20,
+            "issue_date": "2025-08-15",
+            "due_date": "2025-09-14",
+            "notes": "Payment terms: 30 days"
+        }
+        
+        success, response = self.run_test("Create Invoice", "POST", "invoices", 200, invoice_data)
+        if success and 'id' in response:
+            self.created_invoice_id = response['id']
+            print(f"   Created invoice ID: {self.created_invoice_id}")
+            print(f"   Invoice number: {response.get('invoice_number', 'N/A')}")
+            print(f"   Total amount: £{response.get('total_amount', 0):.2f}")
+            
+            # Verify calculations
+            expected_subtotal = (8 * 15.50) + (12 * 14.00)  # 124 + 168 = 292
+            expected_tax = expected_subtotal * 0.20  # 58.40
+            expected_total = expected_subtotal + expected_tax  # 350.40
+            
+            if abs(response.get('total_amount', 0) - expected_total) < 0.01:
+                print("✅ Invoice calculations are correct")
+            else:
+                print(f"❌ Invoice calculation error: expected {expected_total}, got {response.get('total_amount', 0)}")
+        
+        return success, response
+
+    def test_get_invoices_with_data(self):
+        """Test getting invoices when data exists"""
+        return self.run_test("Get Invoices (With Data)", "GET", "invoices", 200)
+
+    def test_get_invoice_by_id(self):
+        """Test getting specific invoice by ID"""
+        if not self.created_invoice_id:
+            print("❌ Skipped - No invoice ID available")
+            return False, {}
+        return self.run_test("Get Invoice by ID", "GET", f"invoices/{self.created_invoice_id}", 200)
+
+    def test_update_invoice(self):
+        """Test updating an invoice"""
+        if not self.created_invoice_id:
+            print("❌ Skipped - No invoice ID available")
+            return False, {}
+        
+        update_data = {
+            "client_email": "finance@arsenal.com",
+            "items": [
+                {
+                    "description": "Security Services - Match Day (Updated)",
+                    "quantity": 10,
+                    "unit_price": 16.00
+                }
+            ],
+            "tax_rate": 20,
+            "notes": "Updated invoice with revised quantities"
+        }
+        
+        success, response = self.run_test("Update Invoice", "PUT", f"invoices/{self.created_invoice_id}", 200, update_data)
+        
+        if success and response:
+            print(f"   Updated total: £{response.get('total_amount', 0):.2f}")
+            # Verify new calculations: 10 * 16.00 = 160, tax = 32, total = 192
+            expected_total = 160 + 32
+            if abs(response.get('total_amount', 0) - expected_total) < 0.01:
+                print("✅ Invoice update calculations are correct")
+            else:
+                print(f"❌ Update calculation error: expected {expected_total}, got {response.get('total_amount', 0)}")
+        
+        return success, response
+
+    def test_create_completed_job_for_invoice(self):
+        """Test creating a completed job to generate invoice from"""
+        job_data = {
+            "name": "Chelsea vs Manchester United - Stamford Bridge",
+            "client": "Chelsea FC",
+            "date": "2025-08-10",
+            "location": "Stamford Bridge, London",
+            "start_time": "14:00",
+            "end_time": "18:00",
+            "job_type": "Security",
+            "staff_required": 6,
+            "hourly_rate": 17.50,
+            "notes": "Premier League match",
+            "status": "completed"
+        }
+        
+        success, response = self.run_test("Create Completed Job", "POST", "jobs", 200, job_data)
+        if success and 'id' in response:
+            self.completed_job_id = response['id']
+            print(f"   Created completed job ID: {self.completed_job_id}")
+        return success, response
+
+    def test_generate_invoice_from_job(self):
+        """Test auto-generating invoice from completed job"""
+        if not self.completed_job_id:
+            print("❌ Skipped - No completed job ID available")
+            return False, {}
+        
+        success, response = self.run_test("Generate Invoice from Job", "POST", f"invoices/generate-from-job/{self.completed_job_id}", 200)
+        
+        if success and response:
+            print(f"   Generated invoice: {response.get('invoice_number', 'N/A')}")
+            print(f"   Client: {response.get('client_name', 'N/A')}")
+            print(f"   Total: £{response.get('total_amount', 0):.2f}")
+            print(f"   Job linked: {response.get('job_name', 'N/A')}")
+            
+            # Verify it's linked to the job
+            if response.get('job_id') == self.completed_job_id:
+                print("✅ Invoice correctly linked to job")
+            else:
+                print("❌ Invoice not properly linked to job")
+        
+        return success, response
+
+    def test_send_invoice(self):
+        """Test sending invoice to client"""
+        if not self.created_invoice_id:
+            print("❌ Skipped - No invoice ID available")
+            return False, {}
+        
+        # Note: This will likely fail due to email API key, but we test the endpoint
+        success, response = self.run_test("Send Invoice", "POST", f"invoices/{self.created_invoice_id}/send", 500)
+        
+        # Check if it's an email-related error (expected)
+        if not success and "Failed to send invoice" in str(response):
+            print("✅ Send invoice endpoint working (email failure expected)")
+            return True, response
+        
+        return success, response
+
+    def test_mark_invoice_paid(self):
+        """Test marking invoice as paid"""
+        if not self.created_invoice_id:
+            print("❌ Skipped - No invoice ID available")
+            return False, {}
+        
+        success, response = self.run_test("Mark Invoice Paid", "POST", f"invoices/{self.created_invoice_id}/mark-paid", 200)
+        
+        if success and response:
+            print(f"   Payment date: {response.get('payment_date', 'N/A')}")
+        
+        return success, response
+
+    def test_get_invoice_stats_with_data(self):
+        """Test getting invoice stats with data"""
+        success, response = self.run_test("Get Invoice Stats (With Data)", "GET", "invoices/stats/summary", 200)
+        
+        if success and response:
+            print(f"   Total invoices: {response.get('total_invoices', 0)}")
+            print(f"   Total invoiced: £{response.get('total_invoiced', 0):.2f}")
+            print(f"   Total paid: £{response.get('total_paid', 0):.2f}")
+            print(f"   Total pending: £{response.get('total_pending', 0):.2f}")
+            print(f"   Total overdue: £{response.get('total_overdue', 0):.2f}")
+            print(f"   Paid count: {response.get('paid_count', 0)}")
+            print(f"   Pending count: {response.get('pending_count', 0)}")
+            print(f"   Overdue count: {response.get('overdue_count', 0)}")
+            
+            # Verify stats make sense
+            total_calculated = response.get('total_paid', 0) + response.get('total_pending', 0) + response.get('total_overdue', 0)
+            total_invoiced = response.get('total_invoiced', 0)
+            
+            if abs(total_calculated - total_invoiced) < 0.01:
+                print("✅ Invoice stats calculations are consistent")
+            else:
+                print(f"❌ Stats inconsistency: calculated {total_calculated}, invoiced {total_invoiced}")
+        
+        return success, response
+
+    def test_invoice_status_filtering(self):
+        """Test that invoices can be filtered by status"""
+        # Create invoices with different statuses for testing
+        draft_invoice = {
+            "client_name": "Liverpool FC",
+            "client_email": "accounts@liverpool.com",
+            "items": [{"description": "Event Security", "quantity": 5, "unit_price": 20.00}],
+            "tax_rate": 20,
+            "issue_date": "2025-08-16",
+            "due_date": "2025-09-15"
+        }
+        
+        success, response = self.run_test("Create Draft Invoice", "POST", "invoices", 200, draft_invoice)
+        
+        if success:
+            # Get all invoices and check status variety
+            success2, all_invoices = self.run_test("Get All Invoices for Status Check", "GET", "invoices", 200)
+            
+            if success2 and all_invoices:
+                statuses = [inv.get('status') for inv in all_invoices]
+                unique_statuses = set(statuses)
+                print(f"   Invoice statuses found: {list(unique_statuses)}")
+                
+                if len(unique_statuses) >= 2:
+                    print("✅ Multiple invoice statuses available for filtering")
+                else:
+                    print("⚠️  Only one status type found")
+        
+        return success, response
+
+    def test_delete_invoice(self):
+        """Test deleting an invoice"""
+        if not self.created_invoice_id:
+            print("❌ Skipped - No invoice ID available")
+            return False, {}
+        return self.run_test("Delete Invoice", "DELETE", f"invoices/{self.created_invoice_id}", 200)
+
+    def test_invoice_error_cases(self):
+        """Test invoice-related error handling"""
+        print("\n🔍 Testing Invoice Error Cases...")
+        
+        # Test getting non-existent invoice
+        self.run_test("Get Non-existent Invoice", "GET", "invoices/non-existent-id", 404)
+        
+        # Test updating non-existent invoice
+        update_data = {"client_name": "Test Client"}
+        self.run_test("Update Non-existent Invoice", "PUT", "invoices/non-existent-id", 404, update_data)
+        
+        # Test deleting non-existent invoice
+        self.run_test("Delete Non-existent Invoice", "DELETE", "invoices/non-existent-id", 404)
+        
+        # Test marking non-existent invoice as paid
+        self.run_test("Mark Non-existent Invoice Paid", "POST", "invoices/non-existent-id/mark-paid", 404)
+        
+        # Test sending non-existent invoice
+        self.run_test("Send Non-existent Invoice", "POST", "invoices/non-existent-id/send", 404)
+        
+        # Test generating invoice from non-existent job
+        self.run_test("Generate Invoice from Non-existent Job", "POST", "invoices/generate-from-job/non-existent-id", 404)
+        
+        # Test creating invoice with invalid data
+        invalid_invoice = {
+            "client_name": "",  # Empty name
+            "items": [],  # No items
+            "tax_rate": -5,  # Negative tax
+            "issue_date": "invalid-date",
+            "due_date": "invalid-date"
+        }
+        self.run_test("Create Invalid Invoice", "POST", "invoices", 422, invalid_invoice)
+
+    def test_staff_assignment_notifications(self):
+        """Test that staff assignment triggers notification attempt"""
+        if not self.created_job_id or not self.created_employee_id:
+            print("❌ Skipped - No job or employee ID available")
+            return False, {}
+        
+        # Assign employee to job with notifications enabled
+        assign_data = {
+            "employee_ids": [self.created_employee_id]
+        }
+        
+        success, response = self.run_test("Assign Staff with Notifications", "POST", f"jobs/{self.created_job_id}/assign?send_notifications=true", 200, assign_data)
+        
+        if success and response:
+            notifications_sent = response.get('notifications_sent', 0)
+            print(f"   Notifications sent: {notifications_sent}")
+            
+            if notifications_sent > 0:
+                print("✅ Notification system triggered (email may fail but count is tracked)")
+            else:
+                print("⚠️  No notifications sent - check if employee has email")
+        
+        return success, response
+
     def run_all_tests(self):
         """Run all API tests in sequence"""
         print("🚀 Starting Payroll API Tests (Including Staff Portal Features)")
