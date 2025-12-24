@@ -460,14 +460,6 @@ export default function Employees() {
                 </div>
               </div>
 
-              <div>
-                        {contract.name} ({contract.client})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="border-t pt-4">
                 <p className="text-sm font-medium text-muted-foreground mb-3">Optional Details</p>
                 <div className="grid grid-cols-2 gap-4">
