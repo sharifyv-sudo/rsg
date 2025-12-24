@@ -102,22 +102,10 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Right Service Group payroll and staff management system with optional GPS clock-in, invoice tracker, and email notifications"
+user_problem_statement: "Right Service Group payroll system with Timesheets page for manual time entry and flexible pay rates"
 
 backend:
-  - task: "Optional GPS Clock-in - Backend"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Backend has require_location field in Job model. GPS verification working."
-
-  - task: "Invoice Tracker - CRUD operations"
+  - task: "Timesheets API - CRUD operations"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -127,59 +115,47 @@ backend:
     status_history:
       - working: true
         agent: "main"
-        comment: "Created invoice endpoints: GET/POST/PUT/DELETE, send invoice, mark paid, generate from job, stats."
+        comment: "Created timesheet endpoints: GET/POST/PUT/DELETE, weekly summary. Tested via curl."
 
-  - task: "Email Notifications - Shift Assignment"
+frontend:
+  - task: "Timesheets Page - Manual entry with tallies"
     implemented: true
-    working: false
-    file: "/app/backend/server.py"
+    working: true
+    file: "/app/frontend/src/pages/Timesheets.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created Timesheets page with stats, employee summary, weekly/monthly view modes, CRUD operations."
+
+  - task: "Flexible Pay Rate Input"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Employees.jsx"
     stuck_count: 0
     priority: "medium"
     needs_retesting: false
     status_history:
-      - working: false
-        agent: "main"
-        comment: "Email functionality implemented but requires real Resend API key. Currently logs failure but system continues working."
-
-frontend:
-  - task: "Optional GPS Clock-in Toggle - Jobs.jsx"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/pages/Jobs.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
       - working: true
         agent: "main"
-        comment: "GPS toggle and badge working correctly."
-
-  - task: "Invoice Tracker Page"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/pages/Invoices.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Created Invoices page with stats, CRUD, status filtering, line items, VAT calculation."
+        comment: "Updated hourly rate inputs to use step=any for flexible decimal entry."
 
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 6
+  test_sequence: 7
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Invoice Tracker - CRUD operations"
-    - "Invoice Tracker Page"
+    - "Timesheets Page - Manual entry with tallies"
+    - "Timesheets API - CRUD operations"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Implemented Invoice Tracker with full CRUD, stats dashboard, line items, VAT calculation, generate from job, send to client, mark paid. Email notifications implemented but require real Resend API key."
+    message: "Implemented Timesheets page with manual time entry. Features: employee dropdown, hours/location/date entry, weekly/monthly tallies, employee summary. Also fixed pay rate inputs to accept any decimal format."
