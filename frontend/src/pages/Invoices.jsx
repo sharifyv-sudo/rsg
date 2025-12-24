@@ -536,14 +536,14 @@ export default function Invoices() {
               <div>
                 <Label htmlFor="job_id">Link to Job (Optional)</Label>
                 <Select
-                  value={formData.job_id}
-                  onValueChange={(value) => setFormData({ ...formData, job_id: value })}
+                  value={formData.job_id || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, job_id: value === "none" ? "" : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a job..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {jobs.map(job => (
                       <SelectItem key={job.id} value={job.id}>
                         {job.name} - {formatDate(job.date)}
