@@ -1214,6 +1214,24 @@ class PayrollAPITester:
         self.test_staff_signup_for_job()
         self.test_staff_withdraw_from_job()
         
+        # Invoice Tracker tests
+        print("\n" + "=" * 40)
+        print("🧾 TESTING INVOICE TRACKER FEATURE")
+        print("=" * 40)
+        self.test_get_invoices_empty()
+        self.test_get_invoice_stats_empty()
+        self.test_create_invoice()
+        self.test_get_invoices_with_data()
+        self.test_get_invoice_by_id()
+        self.test_update_invoice()
+        self.test_create_completed_job_for_invoice()
+        self.test_generate_invoice_from_job()
+        self.test_send_invoice()
+        self.test_mark_invoice_paid()
+        self.test_get_invoice_stats_with_data()
+        self.test_invoice_status_filtering()
+        self.test_staff_assignment_notifications()
+        
         # Dashboard tests
         self.test_dashboard_stats()
         
