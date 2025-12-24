@@ -1102,6 +1102,176 @@ class PayrollAPITester:
         }
         self.run_test("Create Invalid Invoice", "POST", "invoices", 422, invalid_invoice)
 
+    # ========== Timesheet Tests ==========
+    
+    def test_get_timesheets_empty(self):
+        """Test getting timesheets when none exist"""
+        return self.run_test("Get Timesheets (Empty)", "GET", "timesheets", 200)
+
+    def test_create_timesheet_entry(self):
+        """Test creating a new timesheet entry with flexible decimal hours"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        
+        timesheet_data = {
+            "employee_id": self.created_employee_id,
+            "employee_name": "John Smith",
+            "hours_worked": 7.5,  # Flexible decimal
+            "location": "Emirates Stadium",
+            "date": "2025-08-15",
+            "notes": "Match day stewarding",
+            "hourly_rate": 15.50
+        }
+        
+        success, response = self.run_test("Create Timesheet Entry", "POST", "timesheets", 200, timesheet_data)
+        if success and 'id' in response:
+            self.created_timesheet_id = response['id']
+            print(f"   Created timesheet ID: {self.created_timesheet_id}")
+            print(f"   Hours worked: {response.get('hours_worked', 0)}")
+            
+            # Verify flexible decimal is preserved
+            if response.get('hours_worked') == 7.5:
+                print("✅ Flexible decimal hours preserved correctly")
+            else:
+                print(f"❌ Hours decimal issue: expected 7.5, got {response.get('hours_worked')}")
+        
+        return success, response
+
+    def test_create_timesheet_with_complex_decimal(self):
+        """Test creating timesheet with complex decimal (12.505 hours)"""
+        if not self.second_employee_id:
+            print("❌ Skipped - No second employee ID available")
+            return False, {}
+        
+        timesheet_data = {
+            "employee_id": self.second_employee_id,
+            "employee_name": "Jane Doe",
+            "hours_worked": 12.505,  # Complex decimal
+            "location": "Old Trafford",
+            "date": "2025-08-16",
+            "notes": "Security shift with overtime",
+            "hourly_rate": 18.25
+        }
+        
+        success, response = self.run_test("Create Timesheet Complex Decimal", "POST", "timesheets", 200, timesheet_data)
+        if success and 'id' in response:
+            self.second_timesheet_id = response['id']
+            print(f"   Created second timesheet ID: {self.second_timesheet_id}")
+            print(f"   Complex decimal hours: {response.get('hours_worked', 0)}")
+            
+            # Verify complex decimal is preserved
+            if abs(response.get('hours_worked', 0) - 12.505) < 0.001:
+                print("✅ Complex decimal hours preserved correctly")
+            else:
+                print(f"❌ Complex decimal issue: expected 12.505, got {response.get('hours_worked')}")
+        
+        return success, response
+
+    def test_get_timesheets_with_data(self):
+        """Test getting timesheets when data exists"""
+        return self.run_test("Get Timesheets (With Data)", "GET", "timesheets", 200)
+
+    def test_get_timesheet_by_id(self):
+        """Test getting specific timesheet by ID"""
+        if not hasattr(self, 'created_timesheet_id') or not self.created_timesheet_id:
+            print("❌ Skipped - No timesheet ID available")
+            return False, {}
+        return self.run_test("Get Timesheet by ID", "GET", f"timesheets/{self.created_timesheet_id}", 200)
+
+    def test_update_timesheet(self):
+        """Test updating a timesheet entry"""
+        if not hasattr(self, 'created_timesheet_id') or not self.created_timesheet_id:
+            print("❌ Skipped - No timesheet ID available")
+            return False, {}
+        
+        update_data = {
+            "hours_worked": 8.25,  # Updated flexible decimal
+            "notes": "Updated: Extended shift with break",
+            "hourly_rate": 16.00
+        }
+        
+        success, response = self.run_test("Update Timesheet", "PUT", f"timesheets/{self.created_timesheet_id}", 200, update_data)
+        
+        if success and response:
+            print(f"   Updated hours: {response.get('hours_worked', 0)}")
+            if abs(response.get('hours_worked', 0) - 8.25) < 0.001:
+                print("✅ Timesheet update with flexible decimal working")
+            else:
+                print(f"❌ Update decimal issue: expected 8.25, got {response.get('hours_worked')}")
+        
+        return success, response
+
+    def test_weekly_timesheet_summary(self):
+        """Test weekly timesheet summary"""
+        week_start = "2025-08-11"  # Monday of the week containing our entries
+        return self.run_test("Weekly Timesheet Summary", "GET", f"timesheets/summary/weekly?week_start={week_start}", 200)
+
+    def test_delete_timesheet(self):
+        """Test deleting a timesheet entry"""
+        if not hasattr(self, 'created_timesheet_id') or not self.created_timesheet_id:
+            print("❌ Skipped - No timesheet ID available")
+            return False, {}
+        return self.run_test("Delete Timesheet", "DELETE", f"timesheets/{self.created_timesheet_id}", 200)
+
+    def test_timesheet_error_cases(self):
+        """Test timesheet-related error handling"""
+        print("\n🔍 Testing Timesheet Error Cases...")
+        
+        # Test getting non-existent timesheet
+        self.run_test("Get Non-existent Timesheet", "GET", "timesheets/non-existent-id", 404)
+        
+        # Test updating non-existent timesheet
+        update_data = {"hours_worked": 8.0}
+        self.run_test("Update Non-existent Timesheet", "PUT", "timesheets/non-existent-id", 404, update_data)
+        
+        # Test deleting non-existent timesheet
+        self.run_test("Delete Non-existent Timesheet", "DELETE", "timesheets/non-existent-id", 404)
+
+    def test_flexible_pay_rates_employee(self):
+        """Test that employee hourly rates accept flexible decimals"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        
+        # Test updating employee with flexible decimal pay rate
+        update_data = {
+            "hourly_rate": 12.505  # Complex decimal rate
+        }
+        
+        success, response = self.run_test("Employee Flexible Pay Rate", "PUT", f"employees/{self.created_employee_id}", 200, update_data)
+        
+        if success and response:
+            print(f"   Employee hourly rate: £{response.get('hourly_rate', 0)}")
+            if abs(response.get('hourly_rate', 0) - 12.505) < 0.001:
+                print("✅ Employee flexible pay rate working")
+            else:
+                print(f"❌ Employee rate issue: expected 12.505, got {response.get('hourly_rate')}")
+        
+        return success, response
+
+    def test_flexible_pay_rates_job(self):
+        """Test that job hourly rates accept flexible decimals"""
+        if not self.created_job_id:
+            print("❌ Skipped - No job ID available")
+            return False, {}
+        
+        # Test updating job with flexible decimal pay rate
+        update_data = {
+            "hourly_rate": 18.75  # Flexible decimal rate
+        }
+        
+        success, response = self.run_test("Job Flexible Pay Rate", "PUT", f"jobs/{self.created_job_id}", 200, update_data)
+        
+        if success and response:
+            print(f"   Job hourly rate: £{response.get('hourly_rate', 0)}")
+            if abs(response.get('hourly_rate', 0) - 18.75) < 0.001:
+                print("✅ Job flexible pay rate working")
+            else:
+                print(f"❌ Job rate issue: expected 18.75, got {response.get('hourly_rate')}")
+        
+        return success, response
+
     def test_staff_assignment_notifications(self):
         """Test that staff assignment triggers notification attempt"""
         if not self.created_job_id or not self.created_employee_id:
