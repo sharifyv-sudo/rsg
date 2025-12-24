@@ -435,10 +435,10 @@ export default function Employees() {
                     id="hourly_rate"
                     type="number"
                     min="0"
-                    step="0.50"
+                    step="any"
                     value={formData.hourly_rate}
                     onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })}
-                    placeholder="e.g., 12.50"
+                    placeholder="e.g., 12, 12.5, 12.50"
                     data-testid="employee-rate-input"
                   />
                 </div>
