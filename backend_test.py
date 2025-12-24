@@ -483,6 +483,166 @@ class PayrollAPITester:
             return False, {}
         return self.run_test("Delete Job", "DELETE", f"jobs/{self.created_job_id}", 200)
 
+    # ========== Staff Portal Authentication Tests ==========
+    
+    def test_admin_login(self):
+        """Test admin login"""
+        login_data = {
+            "email": "info@rightservicegroup.co.uk",
+            "password": "LondonE7"
+        }
+        success, response = self.run_test("Admin Login", "POST", "auth/login", 200, login_data)
+        
+        if success and response:
+            print(f"   User type: {response.get('user_type')}")
+            print(f"   User name: {response.get('user_name')}")
+            if response.get('user_type') == 'admin':
+                print("✅ Admin login working correctly")
+            else:
+                print("❌ Admin login returned wrong user type")
+        
+        return success, response
+
+    def test_staff_login_no_employee(self):
+        """Test staff login with non-existent employee"""
+        login_data = {
+            "email": "nonexistent@company.com",
+            "password": "RSG2025"
+        }
+        return self.run_test("Staff Login (Non-existent)", "POST", "auth/login", 401, login_data)
+
+    def test_staff_login_with_employee(self):
+        """Test staff login with existing employee"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        
+        # Use the email from the created employee
+        login_data = {
+            "email": "john.smith@company.com",
+            "password": "RSG2025"
+        }
+        success, response = self.run_test("Staff Login (Valid Employee)", "POST", "auth/login", 200, login_data)
+        
+        if success and response:
+            print(f"   User type: {response.get('user_type')}")
+            print(f"   User ID: {response.get('user_id')}")
+            print(f"   User name: {response.get('user_name')}")
+            if response.get('user_type') == 'staff':
+                print("✅ Staff login working correctly")
+            else:
+                print("❌ Staff login returned wrong user type")
+        
+        return success, response
+
+    def test_staff_login_wrong_password(self):
+        """Test staff login with wrong password"""
+        login_data = {
+            "email": "john.smith@company.com",
+            "password": "WrongPassword"
+        }
+        return self.run_test("Staff Login (Wrong Password)", "POST", "auth/login", 401, login_data)
+
+    # ========== Staff Portal API Tests ==========
+    
+    def test_staff_assigned_jobs(self):
+        """Test getting staff assigned jobs"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        return self.run_test("Staff Assigned Jobs", "GET", f"staff/{self.created_employee_id}/jobs", 200)
+
+    def test_staff_available_jobs(self):
+        """Test getting available jobs for staff"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        return self.run_test("Staff Available Jobs", "GET", f"staff/{self.created_employee_id}/available-jobs", 200)
+
+    def test_staff_payslips(self):
+        """Test getting staff payslips"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        return self.run_test("Staff Payslips", "GET", f"staff/{self.created_employee_id}/payslips", 200)
+
+    def test_staff_timeclock_entries(self):
+        """Test getting staff timeclock entries"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        return self.run_test("Staff Timeclock Entries", "GET", f"staff/{self.created_employee_id}/timeclock", 200)
+
+    def test_staff_clock_status(self):
+        """Test getting staff clock status"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        return self.run_test("Staff Clock Status", "GET", f"staff/{self.created_employee_id}/status", 200)
+
+    def test_staff_clock_in(self):
+        """Test staff clock in"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        
+        clock_data = {
+            "job_id": None,
+            "notes": "Test clock in"
+        }
+        return self.run_test("Staff Clock In", "POST", f"staff/{self.created_employee_id}/clock-in", 200, clock_data)
+
+    def test_staff_clock_out(self):
+        """Test staff clock out"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        
+        clock_data = {
+            "notes": "Test clock out"
+        }
+        return self.run_test("Staff Clock Out", "POST", f"staff/{self.created_employee_id}/clock-out", 200, clock_data)
+
+    def test_staff_signup_for_job(self):
+        """Test staff signing up for a job"""
+        if not self.created_employee_id or not self.created_job_id:
+            print("❌ Skipped - No employee or job ID available")
+            return False, {}
+        
+        signup_data = {
+            "job_id": self.created_job_id
+        }
+        return self.run_test("Staff Job Signup", "POST", f"staff/{self.created_employee_id}/signup-job", 200, signup_data)
+
+    def test_staff_withdraw_from_job(self):
+        """Test staff withdrawing from a job"""
+        if not self.created_employee_id or not self.created_job_id:
+            print("❌ Skipped - No employee or job ID available")
+            return False, {}
+        
+        return self.run_test("Staff Job Withdraw", "POST", f"staff/{self.created_employee_id}/withdraw-job/{self.created_job_id}", 200)
+
+    def test_staff_error_cases(self):
+        """Test staff portal error handling"""
+        print("\n🔍 Testing Staff Portal Error Cases...")
+        
+        # Test with non-existent employee ID
+        fake_id = "non-existent-employee-id"
+        
+        self.run_test("Staff Jobs (Non-existent)", "GET", f"staff/{fake_id}/jobs", 200)  # Should return empty list
+        self.run_test("Staff Available Jobs (Non-existent)", "GET", f"staff/{fake_id}/available-jobs", 200)  # Should return empty list
+        self.run_test("Staff Payslips (Non-existent)", "GET", f"staff/{fake_id}/payslips", 200)  # Should return empty list
+        self.run_test("Staff Clock Status (Non-existent)", "GET", f"staff/{fake_id}/status", 200)  # Should return not clocked in
+        
+        # Test clock in for non-existent employee
+        clock_data = {"job_id": None, "notes": "Test"}
+        self.run_test("Clock In (Non-existent Employee)", "POST", f"staff/{fake_id}/clock-in", 404, clock_data)
+        
+        # Test job signup for non-existent job
+        if self.created_employee_id:
+            signup_data = {"job_id": "non-existent-job-id"}
+            self.run_test("Job Signup (Non-existent Job)", "POST", f"staff/{self.created_employee_id}/signup-job", 404, signup_data)
+
     def run_all_tests(self):
         """Run all API tests in sequence"""
         print("🚀 Starting Payroll API Tests (Including Contracts & Job Assignments Features)")
