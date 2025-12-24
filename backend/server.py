@@ -915,18 +915,23 @@ async def get_dashboard():
     payslips = await db.payslips.find({}, {"_id": 0}).to_list(100)
     
     total_employees = len(employees)
-    total_annual = sum(emp.get('annual_salary', 0) for emp in employees)
-    total_monthly_payroll = total_annual / 12 if total_employees > 0 else 0
-    average_salary = total_annual / total_employees if total_employees > 0 else 0
+    
+    # Calculate estimated annual/monthly based on hourly rates (assuming 40h/week, 52 weeks)
+    # This is for display purposes - actual pay is based on hours worked
+    total_hourly = sum(emp.get('hourly_rate', 0) or 0 for emp in employees)
+    estimated_weekly = total_hourly * 40  # 40 hours per week average
+    total_monthly_payroll = estimated_weekly * 4.33  # avg weeks per month
+    average_salary = (total_hourly * 40 * 52) / total_employees if total_employees > 0 else 0  # estimated annual
     
     # Group by department
     dept_counts = {}
     for emp in employees:
         dept = emp.get('department', 'Unknown')
+        hourly = emp.get('hourly_rate', 0) or 0
         if dept not in dept_counts:
             dept_counts[dept] = {'name': dept, 'count': 0, 'total_salary': 0}
         dept_counts[dept]['count'] += 1
-        dept_counts[dept]['total_salary'] += emp.get('annual_salary', 0)
+        dept_counts[dept]['total_salary'] += hourly * 40 * 52 / 12  # monthly estimate
     
     departments = list(dept_counts.values())
     
