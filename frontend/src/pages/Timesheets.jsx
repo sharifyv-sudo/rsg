@@ -162,7 +162,7 @@ export default function Timesheets() {
         toast.success("Timesheet entry added successfully");
       }
       handleCloseDialog();
-      fetchData();
+      await fetchData();  // Ensure data is refreshed
     } catch (error) {
       console.error("Error saving timesheet:", error);
       toast.error(error.response?.data?.detail || "Failed to save timesheet");
