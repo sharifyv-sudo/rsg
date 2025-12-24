@@ -530,6 +530,38 @@ export default function Jobs() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <Label htmlFor="latitude">GPS Latitude *</Label>
+                  <Input
+                    id="latitude"
+                    type="number"
+                    step="any"
+                    value={formData.latitude}
+                    onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                    placeholder="e.g., 51.5549"
+                    required
+                    data-testid="job-latitude-input"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="longitude">GPS Longitude *</Label>
+                  <Input
+                    id="longitude"
+                    type="number"
+                    step="any"
+                    value={formData.longitude}
+                    onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                    placeholder="e.g., -0.1084"
+                    required
+                    data-testid="job-longitude-input"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Get coordinates from Google Maps (right-click on location → "What's here?")
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label htmlFor="start_time">Start Time *</Label>
                   <Input
                     id="start_time"
