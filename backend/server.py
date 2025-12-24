@@ -251,7 +251,7 @@ async def login(request: LoginRequest):
     """Authenticate user with shared credentials"""
     password_hash = hashlib.sha256(request.password.encode()).hexdigest()
     
-    if request.email.lower() == AUTH_EMAIL.lower() and password_hash == AUTH_PASSWORD_HASH:
+    if request.email.lower() == ADMIN_EMAIL.lower() and password_hash == ADMIN_PASSWORD_HASH:
         # Generate a simple session token
         token = hashlib.sha256(f"{request.email}{datetime.now(timezone.utc).isoformat()}".encode()).hexdigest()
         return LoginResponse(
