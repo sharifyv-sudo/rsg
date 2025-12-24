@@ -692,6 +692,29 @@ class PayrollAPITester:
         self.test_create_second_job()
         self.test_employee_availability_conflict()
         
+        # Staff Portal Authentication tests
+        print("\n" + "=" * 40)
+        print("🔐 TESTING STAFF PORTAL AUTHENTICATION")
+        print("=" * 40)
+        self.test_admin_login()
+        self.test_staff_login_no_employee()
+        self.test_staff_login_with_employee()
+        self.test_staff_login_wrong_password()
+        
+        # Staff Portal API tests
+        print("\n" + "=" * 40)
+        print("👥 TESTING STAFF PORTAL APIs")
+        print("=" * 40)
+        self.test_staff_assigned_jobs()
+        self.test_staff_available_jobs()
+        self.test_staff_payslips()
+        self.test_staff_timeclock_entries()
+        self.test_staff_clock_status()
+        self.test_staff_clock_in()
+        self.test_staff_clock_out()
+        self.test_staff_signup_for_job()
+        self.test_staff_withdraw_from_job()
+        
         # Dashboard tests
         self.test_dashboard_stats()
         
