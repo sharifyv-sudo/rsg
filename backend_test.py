@@ -735,6 +735,7 @@ class PayrollAPITester:
         # Error handling tests
         self.test_error_cases()
         self.test_job_error_cases()
+        self.test_staff_error_cases()
 
         # Print final results
         print("\n" + "=" * 60)
