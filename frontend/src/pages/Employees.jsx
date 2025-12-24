@@ -430,16 +430,16 @@ export default function Employees() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="annual_salary">Annual Salary (£) *</Label>
+                  <Label htmlFor="hourly_rate">Hourly Rate (£)</Label>
                   <Input
-                    id="annual_salary"
+                    id="hourly_rate"
                     type="number"
                     min="0"
-                    step="100"
-                    value={formData.annual_salary}
-                    onChange={(e) => setFormData({ ...formData, annual_salary: e.target.value })}
-                    required
-                    data-testid="employee-salary-input"
+                    step="0.50"
+                    value={formData.hourly_rate}
+                    onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })}
+                    placeholder="e.g., 12.50"
+                    data-testid="employee-rate-input"
                   />
                 </div>
                 <div>
@@ -461,18 +461,6 @@ export default function Employees() {
               </div>
 
               <div>
-                <Label htmlFor="contract">Assign to Contract</Label>
-                <Select
-                  value={formData.contract_id}
-                  onValueChange={(value) => setFormData({ ...formData, contract_id: value === "none" ? "" : value })}
-                >
-                  <SelectTrigger data-testid="employee-contract-select">
-                    <SelectValue placeholder="Select contract (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Contract</SelectItem>
-                    {contracts.filter(c => c.status === "active").map((contract) => (
-                      <SelectItem key={contract.id} value={contract.id}>
                         {contract.name} ({contract.client})
                       </SelectItem>
                     ))}
