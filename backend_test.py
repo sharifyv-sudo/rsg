@@ -348,6 +348,9 @@ class PayrollAPITester:
             "client": "Arsenal FC",
             "date": "2025-09-15",
             "location": "Emirates Stadium, London",
+            "latitude": 51.5549,
+            "longitude": -0.1084,
+            "require_location": False,  # Start with GPS disabled
             "start_time": "14:00",
             "end_time": "18:00",
             "job_type": "Steward",
