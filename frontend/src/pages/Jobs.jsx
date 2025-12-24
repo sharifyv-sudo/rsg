@@ -60,6 +60,8 @@ const initialFormData = {
   client: "",
   date: "",
   location: "",
+  latitude: "",
+  longitude: "",
   start_time: "09:00",
   end_time: "17:00",
   job_type: "Steward",
