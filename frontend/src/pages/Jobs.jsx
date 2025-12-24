@@ -114,6 +114,8 @@ export default function Jobs() {
         client: job.client,
         date: job.date,
         location: job.location,
+        latitude: job.latitude?.toString() || "",
+        longitude: job.longitude?.toString() || "",
         start_time: job.start_time,
         end_time: job.end_time,
         job_type: job.job_type,
@@ -143,6 +145,8 @@ export default function Jobs() {
       ...formData,
       staff_required: parseInt(formData.staff_required),
       hourly_rate: parseFloat(formData.hourly_rate),
+      latitude: formData.latitude ? parseFloat(formData.latitude) : null,
+      longitude: formData.longitude ? parseFloat(formData.longitude) : null,
       notes: formData.notes || null
     };
 
