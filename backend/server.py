@@ -1165,6 +1165,280 @@ async def export_job_staff_list(job_id: str):
         "company": "Right Service Group"
     }
 
+# ========== Invoice Endpoints ==========
+
+async def generate_invoice_number():
+    """Generate unique invoice number like INV-2025-001"""
+    year = datetime.now().year
+    # Count existing invoices this year
+    count = await db.invoices.count_documents({
+        "invoice_number": {"$regex": f"^INV-{year}-"}
+    })
+    return f"INV-{year}-{str(count + 1).zfill(3)}"
+
+@api_router.get("/invoices")
+async def get_invoices():
+    """Get all invoices"""
+    invoices = await db.invoices.find({}, {"_id": 0}).to_list(1000)
+    
+    # Check for overdue invoices and update status
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for inv in invoices:
+        if inv.get('status') == 'sent' and inv.get('due_date', '') < today:
+            await db.invoices.update_one({"id": inv['id']}, {"$set": {"status": "overdue"}})
+            inv['status'] = 'overdue'
+        if isinstance(inv.get('created_at'), str):
+            inv['created_at'] = datetime.fromisoformat(inv['created_at'])
+    
+    return sorted(invoices, key=lambda x: x.get('created_at', ''), reverse=True)
+
+@api_router.post("/invoices")
+async def create_invoice(input: InvoiceCreate):
+    """Create a new invoice"""
+    invoice_number = await generate_invoice_number()
+    
+    # Calculate totals
+    items = []
+    subtotal = 0
+    for item in input.items:
+        item_total = item.quantity * item.unit_price
+        items.append({
+            "description": item.description,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "total": round(item_total, 2)
+        })
+        subtotal += item_total
+    
+    tax_amount = subtotal * (input.tax_rate / 100)
+    total_amount = subtotal + tax_amount
+    
+    # Get job name if linked
+    job_name = None
+    if input.job_id:
+        job = await db.jobs.find_one({"id": input.job_id}, {"_id": 0})
+        if job:
+            job_name = job.get('name')
+    
+    invoice = Invoice(
+        invoice_number=invoice_number,
+        client_name=input.client_name,
+        client_email=input.client_email,
+        job_id=input.job_id,
+        job_name=job_name,
+        contract_id=input.contract_id,
+        items=items,
+        subtotal=round(subtotal, 2),
+        tax_rate=input.tax_rate,
+        tax_amount=round(tax_amount, 2),
+        total_amount=round(total_amount, 2),
+        issue_date=input.issue_date,
+        due_date=input.due_date,
+        status="draft",
+        notes=input.notes
+    )
+    
+    doc = invoice.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.invoices.insert_one(doc)
+    return invoice
+
+@api_router.get("/invoices/{invoice_id}")
+async def get_invoice(invoice_id: str):
+    """Get a specific invoice"""
+    invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if isinstance(invoice.get('created_at'), str):
+        invoice['created_at'] = datetime.fromisoformat(invoice['created_at'])
+    return invoice
+
+@api_router.put("/invoices/{invoice_id}")
+async def update_invoice(invoice_id: str, input: InvoiceUpdate):
+    """Update an invoice"""
+    existing = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    update_data = {}
+    for k, v in input.model_dump().items():
+        if v is not None:
+            update_data[k] = v
+    
+    # Recalculate totals if items changed
+    if 'items' in update_data:
+        items = []
+        subtotal = 0
+        for item in update_data['items']:
+            item_total = item.get('quantity', 1) * item.get('unit_price', 0)
+            items.append({
+                "description": item.get('description', ''),
+                "quantity": item.get('quantity', 1),
+                "unit_price": item.get('unit_price', 0),
+                "total": round(item_total, 2)
+            })
+            subtotal += item_total
+        
+        update_data['items'] = items
+        update_data['subtotal'] = round(subtotal, 2)
+        tax_rate = update_data.get('tax_rate', existing.get('tax_rate', 0))
+        update_data['tax_amount'] = round(subtotal * (tax_rate / 100), 2)
+        update_data['total_amount'] = round(subtotal + update_data['tax_amount'], 2)
+    
+    if update_data:
+        await db.invoices.update_one({"id": invoice_id}, {"$set": update_data})
+    
+    updated = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return updated
+
+@api_router.delete("/invoices/{invoice_id}")
+async def delete_invoice(invoice_id: str):
+    """Delete an invoice"""
+    result = await db.invoices.delete_one({"id": invoice_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return {"message": "Invoice deleted successfully"}
+
+@api_router.post("/invoices/{invoice_id}/send")
+async def send_invoice(invoice_id: str):
+    """Send invoice to client via email"""
+    invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    if not invoice.get('client_email'):
+        raise HTTPException(status_code=400, detail="Client email not set")
+    
+    # Generate and send email
+    email_html = generate_invoice_email(invoice)
+    result = await send_email_async(
+        invoice['client_email'],
+        f"Invoice {invoice['invoice_number']} from Right Service Group",
+        email_html
+    )
+    
+    if result.get('success'):
+        # Update invoice status to sent
+        await db.invoices.update_one({"id": invoice_id}, {"$set": {"status": "sent"}})
+        return {"message": "Invoice sent successfully", "email_id": result.get('email_id')}
+    else:
+        raise HTTPException(status_code=500, detail=f"Failed to send invoice: {result.get('error')}")
+
+@api_router.post("/invoices/{invoice_id}/mark-paid")
+async def mark_invoice_paid(invoice_id: str):
+    """Mark invoice as paid"""
+    invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.invoices.update_one({"id": invoice_id}, {"$set": {
+        "status": "paid",
+        "payment_date": today
+    }})
+    
+    return {"message": "Invoice marked as paid", "payment_date": today}
+
+@api_router.post("/invoices/generate-from-job/{job_id}")
+async def generate_invoice_from_job(job_id: str):
+    """Auto-generate an invoice from a completed job"""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get timeclock entries for this job
+    timeclock_entries = await db.timeclock.find({"job_id": job_id}, {"_id": 0}).to_list(1000)
+    
+    # Calculate total hours and cost
+    total_hours = sum(e.get('hours_worked', 0) or 0 for e in timeclock_entries)
+    hourly_rate = job.get('hourly_rate', 0)
+    
+    # Create invoice items
+    items = []
+    if total_hours > 0:
+        items.append({
+            "description": f"Staff services for {job.get('name', 'Job')} - {total_hours:.1f} hours @ £{hourly_rate:.2f}/hr",
+            "quantity": total_hours,
+            "unit_price": hourly_rate,
+            "total": round(total_hours * hourly_rate, 2)
+        })
+    else:
+        # Estimate based on job duration and staff
+        start_time = job.get('start_time', '09:00')
+        end_time = job.get('end_time', '17:00')
+        try:
+            start_h, start_m = map(int, start_time.split(':'))
+            end_h, end_m = map(int, end_time.split(':'))
+            estimated_hours = (end_h + end_m/60) - (start_h + start_m/60)
+            staff_count = len(job.get('assigned_employees', []))
+            total_staff_hours = estimated_hours * staff_count
+            
+            items.append({
+                "description": f"Staff services for {job.get('name', 'Job')} - {staff_count} staff x {estimated_hours:.1f} hours",
+                "quantity": total_staff_hours,
+                "unit_price": hourly_rate,
+                "total": round(total_staff_hours * hourly_rate, 2)
+            })
+        except:
+            pass
+    
+    # Generate invoice
+    invoice_number = await generate_invoice_number()
+    subtotal = sum(item['total'] for item in items)
+    tax_rate = 20  # UK VAT
+    tax_amount = subtotal * 0.20
+    total_amount = subtotal + tax_amount
+    
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    due_date = datetime.now(timezone.utc)
+    due_date = due_date.replace(day=min(due_date.day + 30, 28))  # 30 days payment terms
+    
+    invoice = Invoice(
+        invoice_number=invoice_number,
+        client_name=job.get('client', 'Unknown Client'),
+        job_id=job_id,
+        job_name=job.get('name'),
+        items=items,
+        subtotal=round(subtotal, 2),
+        tax_rate=tax_rate,
+        tax_amount=round(tax_amount, 2),
+        total_amount=round(total_amount, 2),
+        issue_date=today,
+        due_date=due_date.strftime("%Y-%m-%d"),
+        status="draft",
+        notes=f"Invoice for services provided at {job.get('location', 'N/A')} on {job.get('date', 'N/A')}"
+    )
+    
+    doc = invoice.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.invoices.insert_one(doc)
+    return invoice
+
+@api_router.get("/invoices/stats/summary")
+async def get_invoice_stats():
+    """Get invoice statistics for dashboard"""
+    invoices = await db.invoices.find({}, {"_id": 0}).to_list(1000)
+    
+    total_invoiced = sum(inv.get('total_amount', 0) for inv in invoices)
+    total_paid = sum(inv.get('total_amount', 0) for inv in invoices if inv.get('status') == 'paid')
+    total_pending = sum(inv.get('total_amount', 0) for inv in invoices if inv.get('status') in ['sent', 'draft'])
+    total_overdue = sum(inv.get('total_amount', 0) for inv in invoices if inv.get('status') == 'overdue')
+    
+    return {
+        "total_invoices": len(invoices),
+        "total_invoiced": round(total_invoiced, 2),
+        "total_paid": round(total_paid, 2),
+        "total_pending": round(total_pending, 2),
+        "total_overdue": round(total_overdue, 2),
+        "paid_count": len([i for i in invoices if i.get('status') == 'paid']),
+        "pending_count": len([i for i in invoices if i.get('status') in ['sent', 'draft']]),
+        "overdue_count": len([i for i in invoices if i.get('status') == 'overdue'])
+    }
+
 # ========== Dashboard Endpoint ==========
 
 @api_router.get("/dashboard", response_model=DashboardStats)
