@@ -637,9 +637,10 @@ export default function Jobs() {
                     id="hourly_rate"
                     type="number"
                     min="0"
-                    step="0.50"
+                    step="any"
                     value={formData.hourly_rate}
                     onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })}
+                    placeholder="e.g., 12, 12.5, 12.50"
                     required
                     data-testid="job-rate-input"
                   />
