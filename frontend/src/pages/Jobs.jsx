@@ -150,6 +150,7 @@ export default function Jobs() {
       hourly_rate: parseFloat(formData.hourly_rate),
       latitude: formData.latitude ? parseFloat(formData.latitude) : null,
       longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+      require_location: formData.require_location,
       notes: formData.notes || null
     };
 
