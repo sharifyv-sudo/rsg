@@ -232,6 +232,7 @@ class Job(BaseModel):
     location: str
     latitude: Optional[float] = None  # GPS latitude
     longitude: Optional[float] = None  # GPS longitude
+    require_location: bool = False  # If True, GPS verification required for clock in/out
     start_time: str  # e.g., "09:00"
     end_time: str  # e.g., "18:00"
     job_type: str  # Steward, Security, etc.
@@ -249,6 +250,7 @@ class JobCreate(BaseModel):
     location: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    require_location: bool = False
     start_time: str
     end_time: str
     job_type: str
