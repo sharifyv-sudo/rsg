@@ -118,6 +118,7 @@ export default function Jobs() {
         location: job.location,
         latitude: job.latitude?.toString() || "",
         longitude: job.longitude?.toString() || "",
+        require_location: job.require_location || false,
         start_time: job.start_time,
         end_time: job.end_time,
         job_type: job.job_type,
