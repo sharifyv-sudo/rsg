@@ -669,8 +669,25 @@ async def create_payslip(input: PayslipCreate):
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
     
-    # Calculate monthly gross
-    monthly_gross = employee['annual_salary'] / 12
+    # Get hours worked for the period from timeclock
+    # For now, use gross_salary from input or calculate based on hours
+    # Since we're now hourly-based, we need to calculate from actual hours worked
+    hourly_rate = employee.get('hourly_rate', 0)
+    
+    # Query timeclock entries for this employee in the specified period
+    # Build date range for the month
+    from calendar import monthrange
+    days_in_month = monthrange(input.period_year, input.period_month)[1]
+    start_date = f"{input.period_year}-{input.period_month:02d}-01"
+    end_date = f"{input.period_year}-{input.period_month:02d}-{days_in_month:02d}"
+    
+    timeclock_entries = await db.timeclock.find({
+        "employee_id": input.employee_id,
+        "date": {"$gte": start_date, "$lte": end_date}
+    }, {"_id": 0}).to_list(100)
+    
+    total_hours = sum(entry.get('hours_worked', 0) or 0 for entry in timeclock_entries)
+    monthly_gross = total_hours * hourly_rate
     
     # Calculate total deductions
     other_deductions_total = sum(d.amount for d in input.other_deductions)
