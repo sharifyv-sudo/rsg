@@ -1096,13 +1096,17 @@ async def delete_job(job_id: str):
     return {"message": "Job deleted successfully"}
 
 @api_router.post("/jobs/{job_id}/assign")
-async def assign_employees_to_job(job_id: str, request: AssignEmployeesRequest):
+async def assign_employees_to_job(job_id: str, request: AssignEmployeesRequest, send_notifications: bool = True):
     job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
+    # Get current assigned employee IDs
+    current_assigned_ids = {e.get('employee_id') for e in job.get('assigned_employees', [])}
+    
     # Get employee details
     assigned = []
+    new_assignments = []
     for emp_id in request.employee_ids:
         employee = await db.employees.find_one({"id": emp_id}, {"_id": 0})
         if employee:
@@ -1112,11 +1116,28 @@ async def assign_employees_to_job(job_id: str, request: AssignEmployeesRequest):
                 "position": employee['position'],
                 "phone": employee.get('phone', '')
             })
+            # Track new assignments for notifications
+            if emp_id not in current_assigned_ids:
+                new_assignments.append(employee)
     
     await db.jobs.update_one({"id": job_id}, {"$set": {"assigned_employees": assigned}})
     
+    # Send email notifications to newly assigned staff
+    if send_notifications and new_assignments:
+        for employee in new_assignments:
+            if employee.get('email'):
+                email_html = generate_shift_assignment_email(employee['name'], job)
+                asyncio.create_task(send_email_async(
+                    employee['email'],
+                    f"New Shift Assignment: {job.get('name', 'Job')} - {job.get('date', '')}",
+                    email_html
+                ))
+    
     updated = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-    return updated
+    return {
+        **updated,
+        "notifications_sent": len(new_assignments) if send_notifications else 0
+    }
 
 @api_router.get("/jobs/{job_id}/export")
 async def export_job_staff_list(job_id: str):
