@@ -1,14 +1,17 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, NavLink, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
-import { LayoutDashboard, Users, FileText, Briefcase, CalendarCheck } from "lucide-react";
+import { LayoutDashboard, Users, FileText, Briefcase, CalendarCheck, LogOut } from "lucide-react";
 import Dashboard from "@/pages/Dashboard";
 import Employees from "@/pages/Employees";
 import Payslips from "@/pages/Payslips";
 import Contracts from "@/pages/Contracts";
 import Jobs from "@/pages/Jobs";
+import Login from "@/pages/Login";
+import { Button } from "@/components/ui/button";
 
-const Sidebar = () => {
+const Sidebar = ({ onLogout }) => {
   const location = useLocation();
   
   const navItems = [
@@ -53,7 +56,16 @@ const Sidebar = () => {
       </nav>
       
       <div className="p-4 border-t border-border">
-        <p className="text-xs text-muted-foreground text-center">
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-muted-foreground hover:text-destructive"
+          onClick={onLogout}
+          data-testid="logout-btn"
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sign Out
+        </Button>
+        <p className="text-xs text-muted-foreground text-center mt-2">
           © 2025 Right Service Group
         </p>
       </div>
@@ -62,10 +74,49 @@ const Sidebar = () => {
 };
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const token = localStorage.getItem("rsg_auth_token");
+    if (token) {
+      setIsAuthenticated(true);
+    }
+    setLoading(false);
+  }, []);
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("rsg_auth_token");
+    localStorage.removeItem("rsg_auth_email");
+    setIsAuthenticated(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Login onLoginSuccess={handleLoginSuccess} />
+        <Toaster position="top-right" />
+      </>
+    );
+  }
+
   return (
     <BrowserRouter>
       <div className="flex min-h-screen bg-background">
-        <Sidebar />
+        <Sidebar onLogout={handleLogout} />
         <main className="flex-1 overflow-auto">
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -73,6 +124,7 @@ function App() {
             <Route path="/contracts" element={<Contracts />} />
             <Route path="/employees" element={<Employees />} />
             <Route path="/payslips" element={<Payslips />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>
