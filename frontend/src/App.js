@@ -243,6 +243,7 @@ function App() {
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/contracts" element={<Contracts />} />
             <Route path="/employees" element={<Employees />} />
+            <Route path="/invoices" element={<Invoices />} />
             <Route path="/payslips" element={<Payslips />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
