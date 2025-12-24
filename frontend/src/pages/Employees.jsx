@@ -95,21 +95,28 @@ export default function Employees() {
       ]);
       setEmployees(empRes.data);
       setContracts(contractsRes.data);
+      
+      // Fetch hours worked for each employee (this week)
+      const hoursMap = {};
+      for (const emp of empRes.data) {
+        try {
+          const timeRes = await axios.get(`${API}/staff/${emp.id}/timeclock`);
+          const thisWeekEntries = timeRes.data.filter(entry => {
+            const entryDate = new Date(entry.date);
+            const now = new Date();
+            const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+            weekStart.setHours(0, 0, 0, 0);
+            return entryDate >= weekStart;
+          });
+          hoursMap[emp.id] = thisWeekEntries.reduce((sum, e) => sum + (e.hours_worked || 0), 0);
+        } catch (e) {
+          hoursMap[emp.id] = 0;
+        }
+      }
+      setHoursWorked(hoursMap);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      const response = await axios.get(`${API}/employees`);
-      setEmployees(response.data);
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-      toast.error("Failed to load employees");
     } finally {
       setLoading(false);
     }
@@ -124,7 +131,7 @@ export default function Employees() {
         phone: employee.phone || "",
         department: employee.department,
         position: employee.position,
-        annual_salary: employee.annual_salary.toString(),
+        hourly_rate: employee.hourly_rate?.toString() || "",
         contract_id: employee.contract_id || "",
         bank_account: employee.bank_account || "",
         sort_code: employee.sort_code || "",
