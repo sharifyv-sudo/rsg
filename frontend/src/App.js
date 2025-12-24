@@ -24,6 +24,7 @@ const AdminSidebar = ({ onLogout }) => {
   const navItems = [
     { path: "/", icon: LayoutDashboard, label: "Dashboard" },
     { path: "/jobs", icon: CalendarCheck, label: "Jobs" },
+    { path: "/timesheets", icon: ClipboardList, label: "Timesheets" },
     { path: "/contracts", icon: Briefcase, label: "Contracts" },
     { path: "/employees", icon: Users, label: "Employees" },
     { path: "/invoices", icon: Receipt, label: "Invoices" },
