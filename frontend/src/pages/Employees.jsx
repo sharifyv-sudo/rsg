@@ -158,7 +158,7 @@ export default function Employees() {
 
     const payload = {
       ...formData,
-      annual_salary: parseFloat(formData.annual_salary),
+      hourly_rate: formData.hourly_rate ? parseFloat(formData.hourly_rate) : null,
       contract_id: formData.contract_id || null
     };
 
