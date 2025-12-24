@@ -101,3 +101,73 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Right Service Group payroll and staff management system with optional GPS-based clock-in for jobs"
+
+backend:
+  - task: "Optional GPS Clock-in - Backend"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Backend already had require_location field in Job model. Tested via curl - job creation with require_location=true works correctly."
+
+  - task: "Hours Worked - Backend aggregation"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Hours worked is fetched via /api/staff/{id}/timeclock endpoint and aggregated on frontend. Working correctly."
+
+frontend:
+  - task: "Optional GPS Clock-in Toggle - Jobs.jsx"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Jobs.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added require_location toggle to job form. GPS badge shows on job list for jobs requiring location. Verified via screenshots."
+
+  - task: "Hours Worked Display - Employees.jsx"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Employees.jsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Already implemented - fetches timeclock data and aggregates weekly hours per employee."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 5
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Optional GPS Clock-in Toggle - Jobs.jsx"
+    - "Staff Clock-in with/without GPS requirement"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Implemented optional GPS clock-in feature. Added toggle to job creation form, updated form data handling, and added GPS badge to job list. Need to test full flow including staff portal clock-in behavior."
