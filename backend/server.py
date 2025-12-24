@@ -26,9 +26,12 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 # ========== Auth Configuration ==========
-# Shared login credentials
-AUTH_EMAIL = "info@rightservicegroup.co.uk"
-AUTH_PASSWORD_HASH = hashlib.sha256("LondonE7".encode()).hexdigest()
+# Admin credentials
+ADMIN_EMAIL = "info@rightservicegroup.co.uk"
+ADMIN_PASSWORD_HASH = hashlib.sha256("LondonE7".encode()).hexdigest()
+
+# Default password for new staff members
+DEFAULT_STAFF_PASSWORD = "RSG2025"
 
 class LoginRequest(BaseModel):
     email: str
@@ -38,6 +41,33 @@ class LoginResponse(BaseModel):
     success: bool
     message: str
     token: Optional[str] = None
+    user_type: Optional[str] = None  # "admin" or "staff"
+    user_id: Optional[str] = None
+    user_name: Optional[str] = None
+
+class TimeClockEntry(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    employee_id: str
+    employee_name: str
+    clock_in: str  # ISO datetime
+    clock_out: Optional[str] = None  # ISO datetime
+    date: str  # YYYY-MM-DD
+    hours_worked: Optional[float] = None
+    job_id: Optional[str] = None
+    job_name: Optional[str] = None
+    notes: Optional[str] = None
+
+class ClockInRequest(BaseModel):
+    job_id: Optional[str] = None
+    notes: Optional[str] = None
+
+class ClockOutRequest(BaseModel):
+    notes: Optional[str] = None
+
+class JobSignupRequest(BaseModel):
+    job_id: str
 
 # ========== Models ==========
 
