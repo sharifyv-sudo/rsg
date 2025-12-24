@@ -437,21 +437,28 @@ async def staff_clock_in(employee_id: str, request: ClockInRequest):
     if employee_id not in assigned_ids:
         raise HTTPException(status_code=403, detail="You are not assigned to this job")
     
-    # Verify location - job must have GPS coordinates
-    if job.get('latitude') is None or job.get('longitude') is None:
-        raise HTTPException(status_code=400, detail="Job location not configured. Contact admin.")
-    
-    # Calculate distance from job location
-    distance = haversine_distance(
-        request.latitude, request.longitude,
-        job['latitude'], job['longitude']
-    )
-    
-    if distance > MAX_CLOCK_DISTANCE_METERS:
-        raise HTTPException(
-            status_code=403, 
-            detail=f"You must be within {MAX_CLOCK_DISTANCE_METERS}m of the job location to clock in. Current distance: {int(distance)}m"
+    # Check if location verification is required for this job
+    location_verified = False
+    if job.get('require_location', False):
+        # Verify location - job must have GPS coordinates
+        if job.get('latitude') is None or job.get('longitude') is None:
+            raise HTTPException(status_code=400, detail="Job requires location verification but GPS not configured. Contact admin.")
+        
+        if request.latitude is None or request.longitude is None:
+            raise HTTPException(status_code=400, detail="This job requires GPS location to clock in. Please enable location services.")
+        
+        # Calculate distance from job location
+        distance = haversine_distance(
+            request.latitude, request.longitude,
+            job['latitude'], job['longitude']
         )
+        
+        if distance > MAX_CLOCK_DISTANCE_METERS:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"You must be within {MAX_CLOCK_DISTANCE_METERS}m of the job location to clock in. Current distance: {int(distance)}m"
+            )
+        location_verified = True
     
     # Check if already clocked in today for this job
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -481,7 +488,7 @@ async def staff_clock_in(employee_id: str, request: ClockInRequest):
         "clock_in_longitude": request.longitude,
         "clock_out_latitude": None,
         "clock_out_longitude": None,
-        "location_verified": True
+        "location_verified": location_verified
     }
     
     await db.timeclock.insert_one(entry)
@@ -489,7 +496,7 @@ async def staff_clock_in(employee_id: str, request: ClockInRequest):
 
 @api_router.post("/staff/{employee_id}/clock-out")
 async def staff_clock_out(employee_id: str, request: ClockOutRequest):
-    """Staff member clocks out - must be at job location"""
+    """Staff member clocks out - location required only if job requires it"""
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
     # Find open clock-in entry
@@ -501,13 +508,17 @@ async def staff_clock_out(employee_id: str, request: ClockOutRequest):
     if not entry:
         raise HTTPException(status_code=400, detail="No active clock-in found")
     
-    # Get the job to verify location
+    # Get the job to check if location verification is required
     job = await db.jobs.find_one({"id": entry.get('job_id')}, {"_id": 0})
-    if job and job.get('latitude') is not None and job.get('longitude') is not None:
-        # Calculate distance from job location
-        distance = haversine_distance(
-            request.latitude, request.longitude,
-            job['latitude'], job['longitude']
+    if job and job.get('require_location', False):
+        if job.get('latitude') is not None and job.get('longitude') is not None:
+            if request.latitude is None or request.longitude is None:
+                raise HTTPException(status_code=400, detail="This job requires GPS location to clock out. Please enable location services.")
+            
+            # Calculate distance from job location
+            distance = haversine_distance(
+                request.latitude, request.longitude,
+                job['latitude'], job['longitude']
         )
         
         if distance > MAX_CLOCK_DISTANCE_METERS:
