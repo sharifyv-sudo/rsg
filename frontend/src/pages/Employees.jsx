@@ -274,8 +274,9 @@ export default function Employees() {
                     <th>Name</th>
                     <th>Department</th>
                     <th>Position</th>
-                    <th>Contract</th>
-                    <th>Annual Salary</th>
+                    <th>Hours (This Week)</th>
+                    <th>Hourly Rate</th>
+                    <th>Status</th>
                     <th className="w-12"></th>
                   </tr>
                 </thead>
@@ -285,7 +286,7 @@ export default function Employees() {
                       <td>
                         <div>
                           <p className="font-medium">{employee.name}</p>
-                          <p className="text-xs text-muted-foreground">{employee.email}</p>
+                          <p className="text-xs text-muted-foreground">{employee.phone || employee.email}</p>
                         </div>
                       </td>
                       <td>
@@ -293,14 +294,20 @@ export default function Employees() {
                       </td>
                       <td>{employee.position}</td>
                       <td>
-                        {getContractName(employee.contract_id) ? (
-                          <span className="badge badge-emerald">{getContractName(employee.contract_id)}</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Unassigned</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-[#0F64A8]" />
+                          <span className="font-mono font-medium text-[#0F64A8]">
+                            {(hoursWorked[employee.id] || 0).toFixed(1)} hrs
+                          </span>
+                        </div>
                       </td>
-                      <td className="font-mono text-[#0F64A8] font-medium">
-                        {formatCurrency(employee.annual_salary)}
+                      <td className="font-mono text-muted-foreground">
+                        {employee.hourly_rate ? `${formatCurrency(employee.hourly_rate)}/hr` : '-'}
+                      </td>
+                      <td>
+                        <span className={`badge ${AVAILABILITY_OPTIONS.find(o => o.value === employee.availability)?.color || 'badge-slate'}`}>
+                          {AVAILABILITY_OPTIONS.find(o => o.value === employee.availability)?.label || employee.availability}
+                        </span>
                       </td>
                       <td>
                         <DropdownMenu>
