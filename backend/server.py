@@ -774,7 +774,9 @@ async def get_contract(contract_id: str):
     employees = await db.employees.find({"contract_id": contract_id}, {"_id": 0}).to_list(1000)
     contract['employees'] = employees
     contract['employee_count'] = len(employees)
-    contract['labor_cost'] = sum(e.get('annual_salary', 0) for e in employees)
+    # Estimate annual labor cost based on hourly rate (40hrs/week * 52 weeks)
+    total_hourly = sum(e.get('hourly_rate', 0) or 0 for e in employees)
+    contract['labor_cost'] = total_hourly * 40 * 52  # Estimated annual
     contract['monthly_labor_cost'] = contract['labor_cost'] / 12
     contract['budget_remaining'] = contract['budget'] - contract['labor_cost']
     contract['budget_utilization'] = (contract['labor_cost'] / contract['budget'] * 100) if contract['budget'] > 0 else 0
