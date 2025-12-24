@@ -645,7 +645,7 @@ class PayrollAPITester:
 
     def run_all_tests(self):
         """Run all API tests in sequence"""
-        print("🚀 Starting Payroll API Tests (Including Contracts & Job Assignments Features)")
+        print("🚀 Starting Payroll API Tests (Including Staff Portal Features)")
         print(f"📍 Base URL: {self.base_url}")
         print("=" * 60)
 
