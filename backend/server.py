@@ -240,6 +240,8 @@ class JobCreate(BaseModel):
     client: str
     date: str
     location: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     start_time: str
     end_time: str
     job_type: str
@@ -253,6 +255,8 @@ class JobUpdate(BaseModel):
     client: Optional[str] = None
     date: Optional[str] = None
     location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     job_type: Optional[str] = None
