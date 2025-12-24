@@ -1165,6 +1165,141 @@ async def export_job_staff_list(job_id: str):
         "company": "Right Service Group"
     }
 
+# ========== Timesheet Models ==========
+
+class Timesheet(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    employee_id: str
+    employee_name: str
+    hours_worked: float
+    location: str
+    date: str  # ISO date string YYYY-MM-DD
+    notes: Optional[str] = None
+    hourly_rate: float = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class TimesheetCreate(BaseModel):
+    employee_id: str
+    employee_name: str
+    hours_worked: float
+    location: str
+    date: str
+    notes: Optional[str] = None
+    hourly_rate: float = 0
+
+class TimesheetUpdate(BaseModel):
+    employee_id: Optional[str] = None
+    employee_name: Optional[str] = None
+    hours_worked: Optional[float] = None
+    location: Optional[str] = None
+    date: Optional[str] = None
+    notes: Optional[str] = None
+    hourly_rate: Optional[float] = None
+
+# ========== Timesheet Endpoints ==========
+
+@api_router.get("/timesheets")
+async def get_timesheets():
+    """Get all manual timesheet entries"""
+    timesheets = await db.timesheets.find({}, {"_id": 0}).to_list(1000)
+    for ts in timesheets:
+        if isinstance(ts.get('created_at'), str):
+            ts['created_at'] = datetime.fromisoformat(ts['created_at'])
+    return sorted(timesheets, key=lambda x: x.get('date', ''), reverse=True)
+
+@api_router.post("/timesheets")
+async def create_timesheet(input: TimesheetCreate):
+    """Create a new manual timesheet entry"""
+    timesheet = Timesheet(
+        employee_id=input.employee_id,
+        employee_name=input.employee_name,
+        hours_worked=input.hours_worked,
+        location=input.location,
+        date=input.date,
+        notes=input.notes,
+        hourly_rate=input.hourly_rate
+    )
+    
+    doc = timesheet.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.timesheets.insert_one(doc)
+    return timesheet
+
+@api_router.get("/timesheets/{timesheet_id}")
+async def get_timesheet(timesheet_id: str):
+    """Get a specific timesheet entry"""
+    timesheet = await db.timesheets.find_one({"id": timesheet_id}, {"_id": 0})
+    if not timesheet:
+        raise HTTPException(status_code=404, detail="Timesheet entry not found")
+    if isinstance(timesheet.get('created_at'), str):
+        timesheet['created_at'] = datetime.fromisoformat(timesheet['created_at'])
+    return timesheet
+
+@api_router.put("/timesheets/{timesheet_id}")
+async def update_timesheet(timesheet_id: str, input: TimesheetUpdate):
+    """Update a timesheet entry"""
+    existing = await db.timesheets.find_one({"id": timesheet_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Timesheet entry not found")
+    
+    update_data = {k: v for k, v in input.model_dump().items() if v is not None}
+    if update_data:
+        await db.timesheets.update_one({"id": timesheet_id}, {"$set": update_data})
+    
+    updated = await db.timesheets.find_one({"id": timesheet_id}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return updated
+
+@api_router.delete("/timesheets/{timesheet_id}")
+async def delete_timesheet(timesheet_id: str):
+    """Delete a timesheet entry"""
+    result = await db.timesheets.delete_one({"id": timesheet_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Timesheet entry not found")
+    return {"message": "Timesheet entry deleted successfully"}
+
+@api_router.get("/timesheets/summary/weekly")
+async def get_weekly_timesheet_summary(week_start: str):
+    """Get weekly summary of timesheets"""
+    # Calculate week end (7 days from start)
+    start_date = datetime.fromisoformat(week_start)
+    end_date = start_date + timedelta(days=6)
+    
+    timesheets = await db.timesheets.find({
+        "date": {
+            "$gte": week_start,
+            "$lte": end_date.strftime("%Y-%m-%d")
+        }
+    }, {"_id": 0}).to_list(1000)
+    
+    # Group by employee
+    by_employee = {}
+    for ts in timesheets:
+        emp_id = ts.get('employee_id')
+        if emp_id not in by_employee:
+            by_employee[emp_id] = {
+                "employee_id": emp_id,
+                "employee_name": ts.get('employee_name'),
+                "total_hours": 0,
+                "total_earnings": 0,
+                "entries": []
+            }
+        by_employee[emp_id]['total_hours'] += ts.get('hours_worked', 0)
+        by_employee[emp_id]['total_earnings'] += ts.get('hours_worked', 0) * ts.get('hourly_rate', 0)
+        by_employee[emp_id]['entries'].append(ts)
+    
+    return {
+        "week_start": week_start,
+        "week_end": end_date.strftime("%Y-%m-%d"),
+        "total_hours": sum(e['total_hours'] for e in by_employee.values()),
+        "total_earnings": sum(e['total_earnings'] for e in by_employee.values()),
+        "by_employee": list(by_employee.values())
+    }
+
 # ========== Invoice Endpoints ==========
 
 async def generate_invoice_number():
