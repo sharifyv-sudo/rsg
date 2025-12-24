@@ -1384,6 +1384,25 @@ class PayrollAPITester:
         self.test_staff_signup_for_job()
         self.test_staff_withdraw_from_job()
         
+        # Timesheet tests
+        print("\n" + "=" * 40)
+        print("📋 TESTING TIMESHEETS FEATURE")
+        print("=" * 40)
+        self.test_get_timesheets_empty()
+        self.test_create_timesheet_entry()
+        self.test_create_timesheet_with_complex_decimal()
+        self.test_get_timesheets_with_data()
+        self.test_get_timesheet_by_id()
+        self.test_update_timesheet()
+        self.test_weekly_timesheet_summary()
+        
+        # Flexible pay rate tests
+        print("\n" + "=" * 40)
+        print("💰 TESTING FLEXIBLE PAY RATES")
+        print("=" * 40)
+        self.test_flexible_pay_rates_employee()
+        self.test_flexible_pay_rates_job()
+        
         # Invoice Tracker tests
         print("\n" + "=" * 40)
         print("🧾 TESTING INVOICE TRACKER FEATURE")
