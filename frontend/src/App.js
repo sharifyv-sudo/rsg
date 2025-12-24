@@ -243,6 +243,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/jobs" element={<Jobs />} />
+            <Route path="/timesheets" element={<Timesheets />} />
             <Route path="/contracts" element={<Contracts />} />
             <Route path="/employees" element={<Employees />} />
             <Route path="/invoices" element={<Invoices />} />
