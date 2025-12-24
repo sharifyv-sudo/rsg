@@ -112,12 +112,14 @@ class Employee(BaseModel):
     department: str
     position: str
     annual_salary: float  # In GBP
+    hourly_rate: Optional[float] = None  # For job-based pay
     contract_id: Optional[str] = None  # Assigned contract
     bank_account: Optional[str] = None
     sort_code: Optional[str] = None
     tax_code: Optional[str] = "1257L"  # Default UK tax code
     ni_number: Optional[str] = None
     availability: str = "available"  # available, unavailable, on_leave
+    password_hash: Optional[str] = None  # For staff portal login
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class EmployeeCreate(BaseModel):
@@ -127,6 +129,7 @@ class EmployeeCreate(BaseModel):
     department: str
     position: str
     annual_salary: float
+    hourly_rate: Optional[float] = None
     contract_id: Optional[str] = None
     bank_account: Optional[str] = None
     sort_code: Optional[str] = None
