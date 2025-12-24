@@ -878,6 +878,22 @@ class PayrollAPITester:
         self.test_get_jobs_with_data()
         self.test_get_job_by_id()
         self.test_update_job()
+        
+        # GPS Clock-in Feature tests
+        print("\n" + "=" * 40)
+        print("📍 TESTING GPS CLOCK-IN FEATURE")
+        print("=" * 40)
+        self.test_create_gps_required_job()
+        self.test_toggle_gps_requirement()
+        self.test_clock_in_without_gps_for_gps_job()
+        self.test_clock_in_with_gps_too_far()
+        self.test_clock_in_with_valid_gps()
+        self.test_clock_out_with_gps_required()
+        self.test_clock_in_non_gps_job()
+        self.test_clock_out_non_gps_job()
+        self.test_gps_job_without_coordinates()
+        self.test_clock_in_gps_job_no_coordinates()
+        
         self.test_get_available_employees()
         self.test_assign_employees_to_job()
         self.test_export_job_staff_list()
