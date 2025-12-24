@@ -522,7 +522,9 @@ async def staff_clock_out(employee_id: str, request: ClockOutRequest):
         {"$set": {
             "clock_out": now.isoformat(),
             "hours_worked": hours_worked,
-            "notes": request.notes or entry.get('notes')
+            "notes": request.notes or entry.get('notes'),
+            "clock_out_latitude": request.latitude,
+            "clock_out_longitude": request.longitude
         }}
     )
     
@@ -531,10 +533,8 @@ async def staff_clock_out(employee_id: str, request: ClockOutRequest):
 @api_router.get("/staff/{employee_id}/status")
 async def get_staff_clock_status(employee_id: str):
     """Check if staff is currently clocked in"""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     entry = await db.timeclock.find_one({
         "employee_id": employee_id,
-        "date": today,
         "clock_out": None
     }, {"_id": 0})
     
