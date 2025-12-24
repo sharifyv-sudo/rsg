@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Right Service Group payroll and staff management system with optional GPS-based clock-in for jobs"
+user_problem_statement: "Right Service Group payroll and staff management system with optional GPS clock-in, invoice tracker, and email notifications"
 
 backend:
   - task: "Optional GPS Clock-in - Backend"
@@ -115,19 +115,31 @@ backend:
     status_history:
       - working: true
         agent: "main"
-        comment: "Backend already had require_location field in Job model. Tested via curl - job creation with require_location=true works correctly."
+        comment: "Backend has require_location field in Job model. GPS verification working."
 
-  - task: "Hours Worked - Backend aggregation"
+  - task: "Invoice Tracker - CRUD operations"
     implemented: true
     working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created invoice endpoints: GET/POST/PUT/DELETE, send invoice, mark paid, generate from job, stats."
+
+  - task: "Email Notifications - Shift Assignment"
+    implemented: true
+    working: false
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "medium"
     needs_retesting: false
     status_history:
-      - working: true
+      - working: false
         agent: "main"
-        comment: "Hours worked is fetched via /api/staff/{id}/timeclock endpoint and aggregated on frontend. Working correctly."
+        comment: "Email functionality implemented but requires real Resend API key. Currently logs failure but system continues working."
 
 frontend:
   - task: "Optional GPS Clock-in Toggle - Jobs.jsx"
@@ -136,38 +148,38 @@ frontend:
     file: "/app/frontend/src/pages/Jobs.jsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Added require_location toggle to job form. GPS badge shows on job list for jobs requiring location. Verified via screenshots."
-
-  - task: "Hours Worked Display - Employees.jsx"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/pages/Employees.jsx"
-    stuck_count: 0
-    priority: "medium"
     needs_retesting: false
     status_history:
       - working: true
         agent: "main"
-        comment: "Already implemented - fetches timeclock data and aggregates weekly hours per employee."
+        comment: "GPS toggle and badge working correctly."
+
+  - task: "Invoice Tracker Page"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Invoices.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created Invoices page with stats, CRUD, status filtering, line items, VAT calculation."
 
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 5
+  test_sequence: 6
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Optional GPS Clock-in Toggle - Jobs.jsx"
-    - "Staff Clock-in with/without GPS requirement"
+    - "Invoice Tracker - CRUD operations"
+    - "Invoice Tracker Page"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Implemented optional GPS clock-in feature. Added toggle to job creation form, updated form data handling, and added GPS badge to job list. Need to test full flow including staff portal clock-in behavior."
+    message: "Implemented Invoice Tracker with full CRUD, stats dashboard, line items, VAT calculation, generate from job, send to client, mark paid. Email notifications implemented but require real Resend API key."
