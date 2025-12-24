@@ -25,6 +25,7 @@ const AdminSidebar = ({ onLogout }) => {
     { path: "/jobs", icon: CalendarCheck, label: "Jobs" },
     { path: "/contracts", icon: Briefcase, label: "Contracts" },
     { path: "/employees", icon: Users, label: "Employees" },
+    { path: "/invoices", icon: Receipt, label: "Invoices" },
     { path: "/payslips", icon: FileText, label: "Payslips" },
   ];
 
