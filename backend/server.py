@@ -211,6 +211,29 @@ class JobUpdate(BaseModel):
 class AssignEmployeesRequest(BaseModel):
     employee_ids: List[str]
 
+# ========== Auth Endpoints ==========
+
+@api_router.post("/auth/login", response_model=LoginResponse)
+async def login(request: LoginRequest):
+    """Authenticate user with shared credentials"""
+    password_hash = hashlib.sha256(request.password.encode()).hexdigest()
+    
+    if request.email.lower() == AUTH_EMAIL.lower() and password_hash == AUTH_PASSWORD_HASH:
+        # Generate a simple session token
+        token = hashlib.sha256(f"{request.email}{datetime.now(timezone.utc).isoformat()}".encode()).hexdigest()
+        return LoginResponse(
+            success=True,
+            message="Login successful",
+            token=token
+        )
+    else:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+@api_router.get("/auth/verify")
+async def verify_token():
+    """Verify if user is authenticated (token checked on frontend)"""
+    return {"valid": True}
+
 # ========== Employee Endpoints ==========
 
 @api_router.get("/")
