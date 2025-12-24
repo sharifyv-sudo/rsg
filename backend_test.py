@@ -390,6 +390,195 @@ class PayrollAPITester:
         }
         return self.run_test("Update Job", "PUT", f"jobs/{self.created_job_id}", 200, update_data)
 
+    # ========== GPS Clock-in Feature Tests ==========
+    
+    def test_create_gps_required_job(self):
+        """Test creating a job that requires GPS location"""
+        job_data = {
+            "name": "Manchester City vs Liverpool - Etihad Stadium",
+            "client": "Manchester City FC",
+            "date": "2025-09-16",
+            "location": "Etihad Stadium, Manchester",
+            "latitude": 53.4831,
+            "longitude": -2.2004,
+            "require_location": True,  # GPS required
+            "start_time": "15:00",
+            "end_time": "19:00",
+            "job_type": "Security",
+            "staff_required": 3,
+            "hourly_rate": 18.00,
+            "notes": "High-profile match - GPS verification required",
+            "status": "upcoming"
+        }
+        
+        success, response = self.run_test("Create GPS-Required Job", "POST", "jobs", 200, job_data)
+        if success and 'id' in response:
+            self.gps_job_id = response['id']
+            print(f"   Created GPS job ID: {self.gps_job_id}")
+            # Verify GPS requirement is set
+            if response.get('require_location') == True:
+                print("✅ GPS requirement correctly set")
+            else:
+                print("❌ GPS requirement not set correctly")
+        return success, response
+
+    def test_toggle_gps_requirement(self):
+        """Test updating job to toggle GPS requirement"""
+        if not self.created_job_id:
+            print("❌ Skipped - No job ID available")
+            return False, {}
+        
+        # Enable GPS for existing job
+        update_data = {
+            "require_location": True,
+            "latitude": 51.5549,
+            "longitude": -0.1084
+        }
+        success, response = self.run_test("Enable GPS Requirement", "PUT", f"jobs/{self.created_job_id}", 200, update_data)
+        
+        if success and response.get('require_location') == True:
+            print("✅ GPS requirement successfully enabled")
+        else:
+            print("❌ Failed to enable GPS requirement")
+        
+        return success, response
+
+    def test_clock_in_without_gps_for_gps_job(self):
+        """Test clock-in without GPS for GPS-required job (should fail)"""
+        if not hasattr(self, 'gps_job_id') or not self.created_employee_id:
+            print("❌ Skipped - No GPS job or employee ID available")
+            return False, {}
+        
+        # First assign employee to GPS job
+        assign_data = {"employee_ids": [self.created_employee_id]}
+        self.run_test("Assign Employee to GPS Job", "POST", f"jobs/{self.gps_job_id}/assign", 200, assign_data)
+        
+        # Try to clock in without GPS coordinates
+        clock_data = {
+            "job_id": self.gps_job_id,
+            "notes": "Attempting clock-in without GPS"
+        }
+        return self.run_test("Clock-in Without GPS (GPS Required)", "POST", f"staff/{self.created_employee_id}/clock-in", 400, clock_data)
+
+    def test_clock_in_with_gps_too_far(self):
+        """Test clock-in with GPS coordinates too far from job location (should fail)"""
+        if not hasattr(self, 'gps_job_id') or not self.created_employee_id:
+            print("❌ Skipped - No GPS job or employee ID available")
+            return False, {}
+        
+        # Try to clock in from London (far from Manchester)
+        clock_data = {
+            "job_id": self.gps_job_id,
+            "latitude": 51.5074,  # London coordinates
+            "longitude": -0.1278,
+            "notes": "Attempting clock-in from wrong location"
+        }
+        return self.run_test("Clock-in Too Far (GPS Required)", "POST", f"staff/{self.created_employee_id}/clock-in", 403, clock_data)
+
+    def test_clock_in_with_valid_gps(self):
+        """Test clock-in with valid GPS coordinates (should succeed)"""
+        if not hasattr(self, 'gps_job_id') or not self.created_employee_id:
+            print("❌ Skipped - No GPS job or employee ID available")
+            return False, {}
+        
+        # Clock in from near the stadium (within 500m)
+        clock_data = {
+            "job_id": self.gps_job_id,
+            "latitude": 53.4835,  # Very close to Etihad Stadium
+            "longitude": -2.2000,
+            "notes": "Valid GPS clock-in"
+        }
+        success, response = self.run_test("Clock-in Valid GPS", "POST", f"staff/{self.created_employee_id}/clock-in", 200, clock_data)
+        
+        if success:
+            print("✅ GPS verification working correctly")
+        
+        return success, response
+
+    def test_clock_out_with_gps_required(self):
+        """Test clock-out for GPS-required job"""
+        if not self.created_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        
+        # Clock out with valid GPS coordinates
+        clock_data = {
+            "latitude": 53.4835,
+            "longitude": -2.2000,
+            "notes": "GPS clock-out"
+        }
+        return self.run_test("Clock-out GPS Required", "POST", f"staff/{self.created_employee_id}/clock-out", 200, clock_data)
+
+    def test_clock_in_non_gps_job(self):
+        """Test clock-in for non-GPS job (should work without coordinates)"""
+        if not self.created_job_id or not self.second_employee_id:
+            print("❌ Skipped - No job or employee ID available")
+            return False, {}
+        
+        # First assign second employee to non-GPS job
+        assign_data = {"employee_ids": [self.second_employee_id]}
+        self.run_test("Assign Employee to Non-GPS Job", "POST", f"jobs/{self.created_job_id}/assign", 200, assign_data)
+        
+        # Clock in without GPS coordinates (should work)
+        clock_data = {
+            "job_id": self.created_job_id,
+            "notes": "Non-GPS job clock-in"
+        }
+        return self.run_test("Clock-in Non-GPS Job", "POST", f"staff/{self.second_employee_id}/clock-in", 200, clock_data)
+
+    def test_clock_out_non_gps_job(self):
+        """Test clock-out for non-GPS job"""
+        if not self.second_employee_id:
+            print("❌ Skipped - No employee ID available")
+            return False, {}
+        
+        # Clock out without GPS coordinates (should work)
+        clock_data = {
+            "notes": "Non-GPS job clock-out"
+        }
+        return self.run_test("Clock-out Non-GPS Job", "POST", f"staff/{self.second_employee_id}/clock-out", 200, clock_data)
+
+    def test_gps_job_without_coordinates(self):
+        """Test creating GPS-required job without coordinates (should work but clock-in will fail)"""
+        job_data = {
+            "name": "Test Event - No GPS Coordinates",
+            "client": "Test Client",
+            "date": "2025-09-17",
+            "location": "Test Location",
+            "require_location": True,  # GPS required but no coordinates
+            "start_time": "10:00",
+            "end_time": "14:00",
+            "job_type": "Other",
+            "staff_required": 1,
+            "hourly_rate": 12.00,
+            "status": "upcoming"
+        }
+        
+        success, response = self.run_test("Create GPS Job Without Coordinates", "POST", "jobs", 200, job_data)
+        if success and 'id' in response:
+            self.incomplete_gps_job_id = response['id']
+            print(f"   Created incomplete GPS job ID: {self.incomplete_gps_job_id}")
+        return success, response
+
+    def test_clock_in_gps_job_no_coordinates(self):
+        """Test clock-in for GPS job that has no coordinates configured"""
+        if not hasattr(self, 'incomplete_gps_job_id') or not self.created_employee_id:
+            print("❌ Skipped - No incomplete GPS job or employee ID available")
+            return False, {}
+        
+        # First assign employee to incomplete GPS job
+        assign_data = {"employee_ids": [self.created_employee_id]}
+        self.run_test("Assign to Incomplete GPS Job", "POST", f"jobs/{self.incomplete_gps_job_id}/assign", 200, assign_data)
+        
+        # Try to clock in (should fail with proper error message)
+        clock_data = {
+            "job_id": self.incomplete_gps_job_id,
+            "latitude": 51.5074,
+            "longitude": -0.1278,
+            "notes": "Attempting clock-in for job without GPS config"
+        }
+        return self.run_test("Clock-in GPS Job No Coordinates", "POST", f"staff/{self.created_employee_id}/clock-in", 400, clock_data)
+
     def test_get_available_employees(self):
         """Test getting available employees for job assignment"""
         # Test with job date parameter
