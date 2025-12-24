@@ -3,7 +3,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Calendar, Briefcase, LogIn, LogOut } from "lucide-react";
+import { Clock, Calendar, MapPin, LogIn, LogOut, AlertTriangle, Navigation } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -34,9 +34,12 @@ export default function StaffTimeClock({ userId, userName }) {
   const [loading, setLoading] = useState(true);
   const [clockStatus, setClockStatus] = useState({ is_clocked_in: false });
   const [timeEntries, setTimeEntries] = useState([]);
-  const [todaysJobs, setTodaysJobs] = useState([]);
+  const [assignedJobs, setAssignedJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState("");
   const [clockingIn, setClockingIn] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [currentLocation, setCurrentLocation] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -52,9 +55,15 @@ export default function StaffTimeClock({ userId, userName }) {
       setClockStatus(statusRes.data);
       setTimeEntries(entriesRes.data);
       
-      // Filter for today's jobs
+      // Filter for today's upcoming jobs
       const today = new Date().toISOString().split('T')[0];
-      setTodaysJobs(jobsRes.data.filter(j => j.date === today && j.status === 'upcoming'));
+      const upcomingJobs = jobsRes.data.filter(j => j.date === today && j.status === 'upcoming');
+      setAssignedJobs(upcomingJobs);
+      
+      // If only one job today, auto-select it
+      if (upcomingJobs.length === 1) {
+        setSelectedJob(upcomingJobs[0].id);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -62,17 +71,77 @@ export default function StaffTimeClock({ userId, userName }) {
     }
   };
 
+  const getCurrentLocation = () => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation is not supported by your browser"));
+        return;
+      }
+
+      setGettingLocation(true);
+      setLocationError(null);
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          };
+          setCurrentLocation(coords);
+          setGettingLocation(false);
+          resolve(coords);
+        },
+        (error) => {
+          setGettingLocation(false);
+          let errorMessage = "Unable to get your location";
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = "Location access denied. Please enable location in your browser settings.";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = "Location information unavailable. Please try again.";
+              break;
+            case error.TIMEOUT:
+              errorMessage = "Location request timed out. Please try again.";
+              break;
+          }
+          setLocationError(errorMessage);
+          reject(new Error(errorMessage));
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    });
+  };
+
   const handleClockIn = async () => {
+    if (!selectedJob) {
+      toast.error("Please select a job to clock in");
+      return;
+    }
+
     setClockingIn(true);
     try {
+      // Get current location
+      const location = await getCurrentLocation();
+      
       await axios.post(`${API}/staff/${userId}/clock-in`, {
-        job_id: selectedJob || null
+        job_id: selectedJob,
+        latitude: location.latitude,
+        longitude: location.longitude
       });
-      toast.success("Clocked in successfully!");
+      
+      const job = assignedJobs.find(j => j.id === selectedJob);
+      toast.success(`Clocked in at ${job?.name || 'job'}`);
       setSelectedJob("");
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Failed to clock in");
+      const message = error.response?.data?.detail || error.message || "Failed to clock in";
+      toast.error(message);
     } finally {
       setClockingIn(false);
     }
@@ -81,11 +150,18 @@ export default function StaffTimeClock({ userId, userName }) {
   const handleClockOut = async () => {
     setClockingIn(true);
     try {
-      const response = await axios.post(`${API}/staff/${userId}/clock-out`, {});
+      // Get current location
+      const location = await getCurrentLocation();
+      
+      const response = await axios.post(`${API}/staff/${userId}/clock-out`, {
+        latitude: location.latitude,
+        longitude: location.longitude
+      });
       toast.success(`Clocked out! Hours worked: ${response.data.hours_worked}`);
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Failed to clock out");
+      const message = error.response?.data?.detail || error.message || "Failed to clock out";
+      toast.error(message);
     } finally {
       setClockingIn(false);
     }
@@ -118,6 +194,19 @@ export default function StaffTimeClock({ userId, userName }) {
         <p className="text-muted-foreground text-sm">Track your working hours</p>
       </div>
 
+      {/* Location Warning */}
+      {locationError && (
+        <Card className="mb-4 border-amber-200 bg-amber-50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <div>
+              <p className="text-sm font-medium text-amber-800">Location Required</p>
+              <p className="text-xs text-amber-700">{locationError}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Clock In/Out Card */}
       <Card className="mb-6 border-2 border-[#0F64A8]" data-testid="clock-action-card">
         <CardContent className="p-6">
@@ -131,36 +220,46 @@ export default function StaffTimeClock({ userId, userName }) {
                   {clockStatus.is_clocked_in ? 'Currently Working' : 'Not Clocked In'}
                 </p>
                 {clockStatus.is_clocked_in && clockStatus.current_entry && (
-                  <p className="text-muted-foreground">
-                    Started at {formatTime(clockStatus.current_entry.clock_in)}
+                  <div>
+                    <p className="text-muted-foreground">
+                      Started at {formatTime(clockStatus.current_entry.clock_in)}
+                    </p>
                     {clockStatus.current_entry.job_name && (
-                      <span className="ml-2 badge bg-[#E0F2FE] text-[#0F64A8]">
+                      <span className="badge bg-[#E0F2FE] text-[#0F64A8] mt-1">
+                        <MapPin className="w-3 h-3 mr-1" />
                         {clockStatus.current_entry.job_name}
                       </span>
                     )}
-                  </p>
+                  </div>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              {!clockStatus.is_clocked_in && todaysJobs.length > 0 && (
-                <Select value={selectedJob} onValueChange={setSelectedJob}>
-                  <SelectTrigger className="w-48" data-testid="job-select">
-                    <SelectValue placeholder="Select job (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">No specific job</SelectItem>
-                    {todaysJobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id}>{job.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="flex flex-col items-end gap-3">
+              {!clockStatus.is_clocked_in && (
+                <>
+                  {assignedJobs.length > 0 ? (
+                    <Select value={selectedJob} onValueChange={setSelectedJob}>
+                      <SelectTrigger className="w-64" data-testid="job-select">
+                        <SelectValue placeholder="Select your job *" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignedJobs.map((job) => (
+                          <SelectItem key={job.id} value={job.id}>
+                            {job.name} ({job.start_time} - {job.end_time})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-sm text-amber-600">No jobs assigned for today</p>
+                  )}
+                </>
               )}
               
               <Button
                 onClick={clockStatus.is_clocked_in ? handleClockOut : handleClockIn}
-                disabled={clockingIn}
+                disabled={clockingIn || gettingLocation || (!clockStatus.is_clocked_in && (!selectedJob || assignedJobs.length === 0))}
                 className={`h-12 px-6 ${clockStatus.is_clocked_in 
                   ? 'bg-red-500 hover:bg-red-600' 
                   : 'bg-green-500 hover:bg-green-600'
@@ -168,12 +267,21 @@ export default function StaffTimeClock({ userId, userName }) {
                 size="lg"
                 data-testid={clockStatus.is_clocked_in ? "clock-out-btn" : "clock-in-btn"}
               >
-                {clockStatus.is_clocked_in ? (
+                {gettingLocation ? (
+                  <><Navigation className="w-5 h-5 mr-2 animate-pulse" /> Getting Location...</>
+                ) : clockingIn ? (
+                  <><Clock className="w-5 h-5 mr-2 animate-spin" /> Processing...</>
+                ) : clockStatus.is_clocked_in ? (
                   <><LogOut className="w-5 h-5 mr-2" /> Clock Out</>
                 ) : (
                   <><LogIn className="w-5 h-5 mr-2" /> Clock In</>
                 )}
               </Button>
+              
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <MapPin className="w-3 h-3" />
+                Location verification required (within 500m of job site)
+              </p>
             </div>
           </div>
         </CardContent>
@@ -190,7 +298,7 @@ export default function StaffTimeClock({ userId, userName }) {
         <Card>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Today's Jobs</p>
-            <p className="font-mono text-2xl font-bold">{todaysJobs.length}</p>
+            <p className="font-mono text-2xl font-bold">{assignedJobs.length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -217,6 +325,7 @@ export default function StaffTimeClock({ userId, userName }) {
                     <th>Clock Out</th>
                     <th>Hours</th>
                     <th>Job</th>
+                    <th>Verified</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -233,6 +342,15 @@ export default function StaffTimeClock({ userId, userName }) {
                           <span className="badge bg-[#E0F2FE] text-[#0F64A8]">{entry.job_name}</span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td>
+                        {entry.location_verified ? (
+                          <span className="badge bg-green-100 text-green-700">
+                            <MapPin className="w-3 h-3 mr-1" /> Verified
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </td>
                     </tr>
