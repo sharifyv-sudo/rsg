@@ -419,29 +419,49 @@ async def get_staff_timeclock(employee_id: str):
 
 @api_router.post("/staff/{employee_id}/clock-in")
 async def staff_clock_in(employee_id: str, request: ClockInRequest):
-    """Staff member clocks in"""
+    """Staff member clocks in - must be at job location"""
     employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
     
-    # Check if already clocked in today
+    # Job is required for location verification
+    job = await db.jobs.find_one({"id": request.job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Check if employee is assigned to this job
+    assigned_ids = [e.get('employee_id') for e in job.get('assigned_employees', [])]
+    if employee_id not in assigned_ids:
+        raise HTTPException(status_code=403, detail="You are not assigned to this job")
+    
+    # Verify location - job must have GPS coordinates
+    if job.get('latitude') is None or job.get('longitude') is None:
+        raise HTTPException(status_code=400, detail="Job location not configured. Contact admin.")
+    
+    # Calculate distance from job location
+    distance = haversine_distance(
+        request.latitude, request.longitude,
+        job['latitude'], job['longitude']
+    )
+    
+    if distance > MAX_CLOCK_DISTANCE_METERS:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"You must be within {MAX_CLOCK_DISTANCE_METERS}m of the job location to clock in. Current distance: {int(distance)}m"
+        )
+    
+    # Check if already clocked in today for this job
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     existing = await db.timeclock.find_one({
         "employee_id": employee_id,
+        "job_id": request.job_id,
         "date": today,
         "clock_out": None
     })
     if existing:
-        raise HTTPException(status_code=400, detail="Already clocked in today")
+        raise HTTPException(status_code=400, detail="Already clocked in for this job today")
     
     now = datetime.now(timezone.utc).isoformat()
-    
-    # Get job name if provided
-    job_name = None
-    if request.job_id:
-        job = await db.jobs.find_one({"id": request.job_id}, {"_id": 0})
-        if job:
-            job_name = job.get('name')
     
     entry = {
         "id": str(uuid.uuid4()),
@@ -452,27 +472,46 @@ async def staff_clock_in(employee_id: str, request: ClockInRequest):
         "date": today,
         "hours_worked": None,
         "job_id": request.job_id,
-        "job_name": job_name,
-        "notes": request.notes
+        "job_name": job.get('name'),
+        "notes": request.notes,
+        "clock_in_latitude": request.latitude,
+        "clock_in_longitude": request.longitude,
+        "clock_out_latitude": None,
+        "clock_out_longitude": None,
+        "location_verified": True
     }
     
     await db.timeclock.insert_one(entry)
-    return {"message": "Clocked in successfully", "clock_in": now}
+    return {"message": "Clocked in successfully", "clock_in": now, "job_name": job.get('name')}
 
 @api_router.post("/staff/{employee_id}/clock-out")
 async def staff_clock_out(employee_id: str, request: ClockOutRequest):
-    """Staff member clocks out"""
+    """Staff member clocks out - must be at job location"""
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
     # Find open clock-in entry
     entry = await db.timeclock.find_one({
         "employee_id": employee_id,
-        "date": today,
         "clock_out": None
     })
     
     if not entry:
-        raise HTTPException(status_code=400, detail="No active clock-in found for today")
+        raise HTTPException(status_code=400, detail="No active clock-in found")
+    
+    # Get the job to verify location
+    job = await db.jobs.find_one({"id": entry.get('job_id')}, {"_id": 0})
+    if job and job.get('latitude') is not None and job.get('longitude') is not None:
+        # Calculate distance from job location
+        distance = haversine_distance(
+            request.latitude, request.longitude,
+            job['latitude'], job['longitude']
+        )
+        
+        if distance > MAX_CLOCK_DISTANCE_METERS:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"You must be within {MAX_CLOCK_DISTANCE_METERS}m of the job location to clock out. Current distance: {int(distance)}m"
+            )
     
     now = datetime.now(timezone.utc)
     clock_in_time = datetime.fromisoformat(entry['clock_in'].replace('Z', '+00:00'))
