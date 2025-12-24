@@ -564,6 +564,27 @@ export default function Jobs() {
                 Get coordinates from Google Maps (right-click on location → "What's here?")
               </p>
 
+              {/* GPS Location Verification Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <MapPinned className="w-5 h-5 text-[#0F64A8]" />
+                  <div>
+                    <Label htmlFor="require_location" className="font-medium cursor-pointer">
+                      Require GPS Clock-in
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Staff must be within 500m of the job location to clock in/out
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="require_location"
+                  checked={formData.require_location}
+                  onCheckedChange={(checked) => setFormData({ ...formData, require_location: checked })}
+                  data-testid="require-location-toggle"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="start_time">Start Time *</Label>
