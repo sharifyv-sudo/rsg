@@ -120,8 +120,7 @@ class Employee(BaseModel):
     phone: Optional[str] = None  # Contact number
     department: str
     position: str
-    annual_salary: float  # In GBP
-    hourly_rate: Optional[float] = None  # For job-based pay
+    hourly_rate: Optional[float] = None  # Pay rate per hour in GBP
     contract_id: Optional[str] = None  # Assigned contract
     bank_account: Optional[str] = None
     sort_code: Optional[str] = None
@@ -137,7 +136,6 @@ class EmployeeCreate(BaseModel):
     phone: Optional[str] = None
     department: str
     position: str
-    annual_salary: float
     hourly_rate: Optional[float] = None
     contract_id: Optional[str] = None
     bank_account: Optional[str] = None
@@ -152,7 +150,7 @@ class EmployeeUpdate(BaseModel):
     phone: Optional[str] = None
     department: Optional[str] = None
     position: Optional[str] = None
-    annual_salary: Optional[float] = None
+    hourly_rate: Optional[float] = None
     contract_id: Optional[str] = None
     bank_account: Optional[str] = None
     sort_code: Optional[str] = None
