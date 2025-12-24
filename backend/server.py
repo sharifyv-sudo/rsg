@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
+import hashlib
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -23,6 +24,20 @@ app = FastAPI()
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+
+# ========== Auth Configuration ==========
+# Shared login credentials
+AUTH_EMAIL = "info@rightservicegroup.co.uk"
+AUTH_PASSWORD_HASH = hashlib.sha256("LondonE7".encode()).hexdigest()
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginResponse(BaseModel):
+    success: bool
+    message: str
+    token: Optional[str] = None
 
 # ========== Models ==========
 
