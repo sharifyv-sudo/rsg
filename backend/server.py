@@ -58,12 +58,21 @@ class TimeClockEntry(BaseModel):
     job_id: Optional[str] = None
     job_name: Optional[str] = None
     notes: Optional[str] = None
+    clock_in_latitude: Optional[float] = None
+    clock_in_longitude: Optional[float] = None
+    clock_out_latitude: Optional[float] = None
+    clock_out_longitude: Optional[float] = None
+    location_verified: bool = False
 
 class ClockInRequest(BaseModel):
-    job_id: Optional[str] = None
+    job_id: str  # Required - must specify which job
+    latitude: float  # Required - GPS latitude
+    longitude: float  # Required - GPS longitude
     notes: Optional[str] = None
 
 class ClockOutRequest(BaseModel):
+    latitude: float  # Required - GPS latitude
+    longitude: float  # Required - GPS longitude
     notes: Optional[str] = None
 
 class JobSignupRequest(BaseModel):
