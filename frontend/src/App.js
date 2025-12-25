@@ -69,6 +69,25 @@ const AdminSidebar = ({ onLogout }) => {
             </NavLink>
           );
         })}
+        
+        {/* Compliance Section */}
+        <div className="pt-4 mt-4 border-t border-border">
+          <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Compliance</p>
+          {complianceItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </NavLink>
+            );
+          })}
+        </div>
       </nav>
       
       <div className="p-4 border-t border-border">
