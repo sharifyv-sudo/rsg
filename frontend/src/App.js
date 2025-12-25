@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import "@/App.css";
 import axios from "axios";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,9 +25,11 @@ import {
   FileSpreadsheet,
   LogOut,
   Search,
-  MoreHorizontal,
   AlertTriangle,
   CheckCircle,
+  Upload,
+  FileUp,
+  X,
   Download
 } from "lucide-react";
 
@@ -88,6 +90,29 @@ const isExpired = (expiryDate) => {
   return expiry < today;
 };
 
+// CSV Parser function
+const parseCSV = (text) => {
+  const lines = text.split('\n').filter(line => line.trim());
+  if (lines.length < 2) return [];
+  
+  // Get headers from first line
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_').replace(/['"]/g, ''));
+  
+  // Parse data rows
+  const data = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+    if (values.length >= 2) {  // At least 2 values
+      const row = {};
+      headers.forEach((header, idx) => {
+        row[header] = values[idx] || '';
+      });
+      data.push(row);
+    }
+  }
+  return data;
+};
+
 // Sidebar Navigation Item Component
 const NavItem = ({ icon: Icon, label, active, onClick }) => (
   <button
@@ -102,6 +127,248 @@ const NavItem = ({ icon: Icon, label, active, onClick }) => (
     <span className="font-medium">{label}</span>
   </button>
 );
+
+// File Drop Zone Component
+const FileDropZone = ({ onFileAccepted, type, isLoading }) => {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDrag = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDragIn = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragOut = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.name.endsWith('.csv')) {
+        onFileAccepted(file);
+      } else {
+        alert('Please upload a CSV file');
+      }
+    }
+  }, [onFileAccepted]);
+
+  const handleFileInput = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.name.endsWith('.csv')) {
+        onFileAccepted(file);
+      } else {
+        alert('Please upload a CSV file');
+      }
+    }
+  };
+
+  const templateHeaders = type === 'rtw' 
+    ? 'employee_name,document_type,document_number,check_date,expiry_date,status,notes'
+    : 'employee_name,license_number,license_type,expiry_date,is_active,notes';
+
+  const sampleRow = type === 'rtw'
+    ? 'John Smith,passport,AB123456,2025-01-15,2030-01-15,valid,Verified in person'
+    : 'John Smith,1234567890123456,door_supervisor,2026-08-01,true,Front of house';
+
+  const downloadTemplate = () => {
+    const content = `${templateHeaders}\n${sampleRow}`;
+    const blob = new Blob([content], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}_import_template.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div
+        onDragEnter={handleDragIn}
+        onDragLeave={handleDragOut}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          isDragging 
+            ? 'border-[#0066B3] bg-blue-50' 
+            : 'border-gray-300 hover:border-gray-400'
+        } ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
+      >
+        <FileUp className={`h-10 w-10 mx-auto mb-3 ${isDragging ? 'text-[#0066B3]' : 'text-gray-400'}`} />
+        <p className="text-gray-600 mb-2">
+          {isLoading ? 'Processing...' : 'Drag and drop your CSV file here'}
+        </p>
+        <p className="text-sm text-gray-400 mb-4">or</p>
+        <label className="cursor-pointer">
+          <span className="bg-[#0066B3] text-white px-4 py-2 rounded-lg hover:bg-[#005299] transition-colors">
+            Browse Files
+          </span>
+          <input
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleFileInput}
+            disabled={isLoading}
+          />
+        </label>
+      </div>
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-gray-500">Supported format: CSV</span>
+        <button 
+          onClick={downloadTemplate}
+          className="text-[#0066B3] hover:underline flex items-center gap-1"
+        >
+          <Download className="h-4 w-4" />
+          Download Template
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Import Preview Dialog
+const ImportPreviewDialog = ({ open, onClose, data, type, onConfirm, isLoading }) => {
+  if (!open) return null;
+  
+  const headers = type === 'rtw' 
+    ? ['Employee Name', 'Document Type', 'Document #', 'Check Date', 'Expiry Date', 'Status']
+    : ['Employee Name', 'License #', 'License Type', 'Expiry Date', 'Active'];
+
+  const getRowValues = (row) => {
+    if (type === 'rtw') {
+      return [
+        row.employee_name,
+        row.document_type,
+        row.document_number,
+        row.check_date,
+        row.expiry_date || '-',
+        row.status || 'pending'
+      ];
+    }
+    return [
+      row.employee_name,
+      row.license_number,
+      row.license_type,
+      row.expiry_date,
+      row.is_active?.toString() || 'true'
+    ];
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Preview Import Data</DialogTitle>
+          <DialogDescription>
+            Review the data before importing. {data.length} record(s) will be processed.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="flex-1 overflow-auto border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50">
+                {headers.map((h, i) => (
+                  <TableHead key={i} className="font-semibold text-gray-600">{h}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.slice(0, 50).map((row, idx) => (
+                <TableRow key={idx}>
+                  {getRowValues(row).map((val, i) => (
+                    <TableCell key={i} className="text-sm">{val}</TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {data.length > 50 && (
+            <p className="text-center py-2 text-gray-500 text-sm">
+              ... and {data.length - 50} more rows
+            </p>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={onConfirm} 
+            className="bg-[#0066B3] hover:bg-[#005299]"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Importing...' : `Import ${data.length} Records`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Import Result Dialog
+const ImportResultDialog = ({ open, onClose, result }) => {
+  if (!open || !result) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Import Complete</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-green-700">{result.created}</p>
+                <p className="text-sm text-green-600">Created</p>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-blue-700">{result.updated}</p>
+                <p className="text-sm text-blue-600">Updated</p>
+              </CardContent>
+            </Card>
+          </div>
+          
+          {result.errors && result.errors.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="font-medium text-red-700 mb-2">Errors ({result.errors.length})</p>
+              <ul className="text-sm text-red-600 space-y-1 max-h-32 overflow-auto">
+                {result.errors.map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button onClick={onClose} className="bg-[#0066B3] hover:bg-[#005299]">
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 function App() {
   const [activePage, setActivePage] = useState("rtw");
@@ -135,6 +402,15 @@ function App() {
     is_active: true,
     notes: "",
   });
+
+  // Import state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importType, setImportType] = useState(null); // 'rtw' or 'sia'
+  const [importPreviewData, setImportPreviewData] = useState([]);
+  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+  const [importResultOpen, setImportResultOpen] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -264,6 +540,41 @@ function App() {
       is_active: true,
       notes: "",
     });
+  };
+
+  // Import Handlers
+  const handleFileAccepted = async (file, type) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      const data = parseCSV(text);
+      if (data.length > 0) {
+        setImportType(type);
+        setImportPreviewData(data);
+        setImportDialogOpen(false);
+        setImportPreviewOpen(true);
+      } else {
+        alert('No valid data found in the CSV file');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportConfirm = async () => {
+    setIsImporting(true);
+    try {
+      const endpoint = importType === 'rtw' ? '/rtw/bulk-import' : '/sia/bulk-import';
+      const response = await axios.post(`${API}${endpoint}`, { items: importPreviewData });
+      setImportResult(response.data);
+      setImportPreviewOpen(false);
+      setImportResultOpen(true);
+      fetchData();
+    } catch (error) {
+      console.error("Import error:", error);
+      alert('Import failed. Please check your data and try again.');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   // Filter records based on search term
@@ -429,6 +740,26 @@ function App() {
               </Card>
             </div>
 
+            {/* Import Section */}
+            <Card className="border-0 shadow-sm mb-6">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-[#0066B3]" />
+                  Bulk Import
+                </CardTitle>
+                <CardDescription>
+                  Upload a CSV file to import multiple RTW checks at once. Existing employees will be updated.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <FileDropZone 
+                  onFileAccepted={(file) => handleFileAccepted(file, 'rtw')}
+                  type="rtw"
+                  isLoading={isImporting}
+                />
+              </CardContent>
+            </Card>
+
             {/* Table Card */}
             <Card className="border-0 shadow-sm">
               <CardContent className="p-0">
@@ -567,7 +898,7 @@ function App() {
                     <div className="text-center py-12 text-gray-500">
                       <FileCheck className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                       <p>No Right to Work checks recorded yet.</p>
-                      <p className="text-sm">Click "Add RTW Check" to get started.</p>
+                      <p className="text-sm">Upload a CSV or click "Add RTW Check" to get started.</p>
                     </div>
                   ) : (
                     <Table>
@@ -586,13 +917,11 @@ function App() {
                         {filteredRtwRecords.map((record) => (
                           <TableRow key={record.id} data-testid={`rtw-row-${record.id}`} className="hover:bg-gray-50">
                             <TableCell>
-                              <div>
-                                <p className="font-semibold text-gray-900">{record.employee_name}</p>
-                              </div>
+                              <p className="font-semibold text-gray-900">{record.employee_name}</p>
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                {RTW_DOCUMENT_TYPES.find((t) => t.value === record.document_type)?.label}
+                                {RTW_DOCUMENT_TYPES.find((t) => t.value === record.document_type)?.label || record.document_type}
                               </Badge>
                             </TableCell>
                             <TableCell className="font-mono text-gray-600">{record.document_number}</TableCell>
@@ -609,25 +938,15 @@ function App() {
                             </TableCell>
                             <TableCell>
                               <Badge className={getStatusBadge(record.status)}>
-                                {RTW_STATUS_OPTIONS.find((s) => s.value === record.status)?.label}
+                                {RTW_STATUS_OPTIONS.find((s) => s.value === record.status)?.label || record.status}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditRtw(record)}
-                                  data-testid={`rtw-edit-${record.id}`}
-                                >
+                                <Button variant="ghost" size="sm" onClick={() => handleEditRtw(record)}>
                                   <Pencil className="h-4 w-4 text-gray-500" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteRtw(record.id)}
-                                  data-testid={`rtw-delete-${record.id}`}
-                                >
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteRtw(record.id)}>
                                   <Trash2 className="h-4 w-4 text-red-500" />
                                 </Button>
                               </div>
@@ -688,6 +1007,26 @@ function App() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Import Section */}
+            <Card className="border-0 shadow-sm mb-6">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-[#0066B3]" />
+                  Bulk Import
+                </CardTitle>
+                <CardDescription>
+                  Upload a CSV file to import multiple SIA licenses at once. Existing employees will be updated.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <FileDropZone 
+                  onFileAccepted={(file) => handleFileAccepted(file, 'sia')}
+                  type="sia"
+                  isLoading={isImporting}
+                />
+              </CardContent>
+            </Card>
 
             {/* Table Card */}
             <Card className="border-0 shadow-sm">
@@ -809,7 +1148,7 @@ function App() {
                     <div className="text-center py-12 text-gray-500">
                       <Shield className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                       <p>No SIA licenses recorded yet.</p>
-                      <p className="text-sm">Click "Add SIA License" to get started.</p>
+                      <p className="text-sm">Upload a CSV or click "Add SIA License" to get started.</p>
                     </div>
                   ) : (
                     <Table>
@@ -827,14 +1166,12 @@ function App() {
                         {filteredSiaRecords.map((record) => (
                           <TableRow key={record.id} data-testid={`sia-row-${record.id}`} className="hover:bg-gray-50">
                             <TableCell>
-                              <div>
-                                <p className="font-semibold text-gray-900">{record.employee_name}</p>
-                              </div>
+                              <p className="font-semibold text-gray-900">{record.employee_name}</p>
                             </TableCell>
                             <TableCell className="font-mono text-gray-600">{record.license_number}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                {SIA_LICENSE_TYPES.find((t) => t.value === record.license_type)?.label}
+                                {SIA_LICENSE_TYPES.find((t) => t.value === record.license_type)?.label || record.license_type}
                               </Badge>
                             </TableCell>
                             <TableCell>
@@ -859,20 +1196,10 @@ function App() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditSia(record)}
-                                  data-testid={`sia-edit-${record.id}`}
-                                >
+                                <Button variant="ghost" size="sm" onClick={() => handleEditSia(record)}>
                                   <Pencil className="h-4 w-4 text-gray-500" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteSia(record.id)}
-                                  data-testid={`sia-delete-${record.id}`}
-                                >
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteSia(record.id)}>
                                   <Trash2 className="h-4 w-4 text-red-500" />
                                 </Button>
                               </div>
@@ -945,6 +1272,23 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Import Preview Dialog */}
+      <ImportPreviewDialog
+        open={importPreviewOpen}
+        onClose={() => setImportPreviewOpen(false)}
+        data={importPreviewData}
+        type={importType}
+        onConfirm={handleImportConfirm}
+        isLoading={isImporting}
+      />
+
+      {/* Import Result Dialog */}
+      <ImportResultDialog
+        open={importResultOpen}
+        onClose={() => setImportResultOpen(false)}
+        result={importResult}
+      />
     </div>
   );
 }
