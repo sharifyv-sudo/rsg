@@ -32,6 +32,11 @@ const AdminSidebar = ({ onLogout }) => {
     { path: "/invoices", icon: Receipt, label: "Invoices" },
     { path: "/payslips", icon: FileText, label: "Payslips" },
   ];
+  
+  const complianceItems = [
+    { path: "/rtw", icon: FileCheck, label: "Right to Work" },
+    { path: "/sia", icon: Shield, label: "SIA Licenses" },
+  ];
 
   return (
     <aside className="w-64 min-h-screen bg-white border-r border-border flex flex-col" data-testid="sidebar">
