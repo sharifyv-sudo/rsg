@@ -1950,6 +1950,12 @@ async def get_compliance_stats():
 # Include the router in the main app
 app.include_router(api_router)
 
+# Health check endpoint for Kubernetes - must be at root level (not under /api)
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Kubernetes liveness and readiness probes"""
+    return {"status": "healthy", "service": "right-service-group-payroll"}
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
