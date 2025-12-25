@@ -1628,6 +1628,324 @@ async def get_dashboard():
         recent_payslips=recent_payslips_data
     )
 
+# ========== Right to Work (RTW) Models & Endpoints ==========
+
+class RTWStatus(str, Enum):
+    VALID = "valid"
+    EXPIRED = "expired"
+    PENDING = "pending"
+    NOT_CHECKED = "not_checked"
+
+class RTWDocumentType(str, Enum):
+    PASSPORT = "passport"
+    BRP = "brp"
+    SHARE_CODE = "share_code"
+    VISA = "visa"
+    SETTLED_STATUS = "settled_status"
+    PRE_SETTLED_STATUS = "pre_settled_status"
+    OTHER = "other"
+
+class RightToWorkCheck(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    employee_name: str
+    document_type: str
+    document_number: str
+    check_date: str
+    expiry_date: Optional[str] = None
+    status: str = "pending"
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class RightToWorkCreate(BaseModel):
+    employee_name: str
+    document_type: str
+    document_number: str
+    check_date: str
+    expiry_date: Optional[str] = None
+    status: str = "pending"
+    notes: Optional[str] = None
+
+class RightToWorkUpdate(BaseModel):
+    employee_name: Optional[str] = None
+    document_type: Optional[str] = None
+    document_number: Optional[str] = None
+    check_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+@api_router.post("/rtw", response_model=RightToWorkCheck)
+async def create_rtw_check(input: RightToWorkCreate):
+    """Create a new Right to Work check record"""
+    rtw_dict = input.model_dump()
+    rtw_obj = RightToWorkCheck(**rtw_dict)
+    doc = rtw_obj.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    doc['updated_at'] = doc['updated_at'].isoformat()
+    await db.rtw_checks.insert_one(doc)
+    return rtw_obj
+
+@api_router.get("/rtw")
+async def get_rtw_checks():
+    """Get all Right to Work check records"""
+    rtw_checks = await db.rtw_checks.find({}, {"_id": 0}).to_list(1000)
+    for check in rtw_checks:
+        if isinstance(check.get('created_at'), str):
+            check['created_at'] = datetime.fromisoformat(check['created_at'])
+        if isinstance(check.get('updated_at'), str):
+            check['updated_at'] = datetime.fromisoformat(check['updated_at'])
+    return rtw_checks
+
+@api_router.get("/rtw/{rtw_id}")
+async def get_rtw_check(rtw_id: str):
+    """Get a specific Right to Work check record"""
+    rtw_check = await db.rtw_checks.find_one({"id": rtw_id}, {"_id": 0})
+    if not rtw_check:
+        raise HTTPException(status_code=404, detail="RTW check not found")
+    return rtw_check
+
+@api_router.put("/rtw/{rtw_id}")
+async def update_rtw_check(rtw_id: str, input: RightToWorkUpdate):
+    """Update a Right to Work check record"""
+    existing = await db.rtw_checks.find_one({"id": rtw_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="RTW check not found")
+    update_data = input.model_dump(exclude_unset=True)
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    await db.rtw_checks.update_one({"id": rtw_id}, {"$set": update_data})
+    updated = await db.rtw_checks.find_one({"id": rtw_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/rtw/{rtw_id}")
+async def delete_rtw_check(rtw_id: str):
+    """Delete a Right to Work check record"""
+    result = await db.rtw_checks.delete_one({"id": rtw_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="RTW check not found")
+    return {"message": "RTW check deleted successfully"}
+
+class BulkImportRequest(BaseModel):
+    items: List[dict]
+
+class BulkImportResponse(BaseModel):
+    created: int
+    updated: int
+    errors: List[str]
+
+@api_router.post("/rtw/bulk-import", response_model=BulkImportResponse)
+async def bulk_import_rtw(request: BulkImportRequest):
+    """Bulk import RTW checks"""
+    created = 0
+    updated = 0
+    errors = []
+    valid_doc_types = ["passport", "brp", "share_code", "visa", "settled_status", "pre_settled_status", "other"]
+    valid_statuses = ["valid", "expired", "pending", "not_checked"]
+    
+    for idx, item in enumerate(request.items):
+        try:
+            employee_name = item.get("employee_name", "").strip()
+            if not employee_name:
+                errors.append(f"Row {idx + 1}: Missing employee name")
+                continue
+            document_type = item.get("document_type", "").strip().lower().replace(" ", "_").replace("-", "_")
+            if document_type not in valid_doc_types:
+                doc_type_map = {"biometric_residence_permit": "brp", "biometric residence permit": "brp", "share code": "share_code"}
+                document_type = doc_type_map.get(document_type.lower(), "other")
+            document_number = item.get("document_number", "").strip()
+            if not document_number:
+                errors.append(f"Row {idx + 1}: Missing document number")
+                continue
+            check_date = item.get("check_date", "").strip()
+            if not check_date:
+                errors.append(f"Row {idx + 1}: Missing check date")
+                continue
+            expiry_date = item.get("expiry_date", "").strip() or None
+            status = item.get("status", "pending").strip().lower().replace(" ", "_")
+            if status not in valid_statuses:
+                status = "pending"
+            notes = item.get("notes", "").strip() or None
+            
+            existing = await db.rtw_checks.find_one({"employee_name": {"$regex": f"^{employee_name}$", "$options": "i"}})
+            if existing:
+                await db.rtw_checks.update_one({"id": existing["id"]}, {"$set": {
+                    "document_type": document_type, "document_number": document_number,
+                    "check_date": check_date, "expiry_date": expiry_date, "status": status,
+                    "notes": notes, "updated_at": datetime.now(timezone.utc).isoformat()
+                }})
+                updated += 1
+            else:
+                new_record = {
+                    "id": str(uuid.uuid4()), "employee_name": employee_name, "document_type": document_type,
+                    "document_number": document_number, "check_date": check_date, "expiry_date": expiry_date,
+                    "status": status, "notes": notes,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.rtw_checks.insert_one(new_record)
+                created += 1
+        except Exception as e:
+            errors.append(f"Row {idx + 1}: {str(e)}")
+    return BulkImportResponse(created=created, updated=updated, errors=errors)
+
+# ========== SIA License Models & Endpoints ==========
+
+class SIALicenseType(str, Enum):
+    DOOR_SUPERVISOR = "door_supervisor"
+    SECURITY_GUARD = "security_guard"
+    CCTV = "cctv"
+    CLOSE_PROTECTION = "close_protection"
+    KEY_HOLDING = "key_holding"
+    VEHICLE_IMMOBILISER = "vehicle_immobiliser"
+
+class SIALicense(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    employee_name: str
+    license_number: str
+    license_type: str
+    expiry_date: str
+    is_active: bool = True
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SIALicenseCreate(BaseModel):
+    employee_name: str
+    license_number: str
+    license_type: str
+    expiry_date: str
+    is_active: bool = True
+    notes: Optional[str] = None
+
+class SIALicenseUpdate(BaseModel):
+    employee_name: Optional[str] = None
+    license_number: Optional[str] = None
+    license_type: Optional[str] = None
+    expiry_date: Optional[str] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+@api_router.post("/sia", response_model=SIALicense)
+async def create_sia_license(input: SIALicenseCreate):
+    """Create a new SIA license record"""
+    sia_dict = input.model_dump()
+    sia_obj = SIALicense(**sia_dict)
+    doc = sia_obj.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    doc['updated_at'] = doc['updated_at'].isoformat()
+    await db.sia_licenses.insert_one(doc)
+    return sia_obj
+
+@api_router.get("/sia")
+async def get_sia_licenses():
+    """Get all SIA license records"""
+    sia_licenses = await db.sia_licenses.find({}, {"_id": 0}).to_list(1000)
+    for license in sia_licenses:
+        if isinstance(license.get('created_at'), str):
+            license['created_at'] = datetime.fromisoformat(license['created_at'])
+        if isinstance(license.get('updated_at'), str):
+            license['updated_at'] = datetime.fromisoformat(license['updated_at'])
+    return sia_licenses
+
+@api_router.get("/sia/{sia_id}")
+async def get_sia_license(sia_id: str):
+    """Get a specific SIA license record"""
+    sia_license = await db.sia_licenses.find_one({"id": sia_id}, {"_id": 0})
+    if not sia_license:
+        raise HTTPException(status_code=404, detail="SIA license not found")
+    return sia_license
+
+@api_router.put("/sia/{sia_id}")
+async def update_sia_license(sia_id: str, input: SIALicenseUpdate):
+    """Update an SIA license record"""
+    existing = await db.sia_licenses.find_one({"id": sia_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="SIA license not found")
+    update_data = input.model_dump(exclude_unset=True)
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    await db.sia_licenses.update_one({"id": sia_id}, {"$set": update_data})
+    updated = await db.sia_licenses.find_one({"id": sia_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/sia/{sia_id}")
+async def delete_sia_license(sia_id: str):
+    """Delete an SIA license record"""
+    result = await db.sia_licenses.delete_one({"id": sia_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="SIA license not found")
+    return {"message": "SIA license deleted successfully"}
+
+@api_router.post("/sia/bulk-import", response_model=BulkImportResponse)
+async def bulk_import_sia(request: BulkImportRequest):
+    """Bulk import SIA licenses"""
+    created = 0
+    updated = 0
+    errors = []
+    valid_license_types = ["door_supervisor", "security_guard", "cctv", "close_protection", "key_holding", "vehicle_immobiliser"]
+    
+    for idx, item in enumerate(request.items):
+        try:
+            employee_name = item.get("employee_name", "").strip()
+            if not employee_name:
+                errors.append(f"Row {idx + 1}: Missing employee name")
+                continue
+            license_number = item.get("license_number", "").strip()
+            if not license_number:
+                errors.append(f"Row {idx + 1}: Missing license number")
+                continue
+            license_type = item.get("license_type", "").strip().lower().replace(" ", "_").replace("-", "_")
+            if license_type not in valid_license_types:
+                type_map = {"door supervisor": "door_supervisor", "security guard": "security_guard", "cctv operator": "cctv"}
+                license_type = type_map.get(license_type.lower(), "door_supervisor")
+            expiry_date = item.get("expiry_date", "").strip()
+            if not expiry_date:
+                errors.append(f"Row {idx + 1}: Missing expiry date")
+                continue
+            is_active_raw = item.get("is_active", "true")
+            is_active = str(is_active_raw).strip().lower() in ["true", "yes", "1", "active"] if not isinstance(is_active_raw, bool) else is_active_raw
+            notes = item.get("notes", "").strip() or None
+            
+            existing = await db.sia_licenses.find_one({"employee_name": {"$regex": f"^{employee_name}$", "$options": "i"}})
+            if existing:
+                await db.sia_licenses.update_one({"id": existing["id"]}, {"$set": {
+                    "license_number": license_number, "license_type": license_type,
+                    "expiry_date": expiry_date, "is_active": is_active, "notes": notes,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }})
+                updated += 1
+            else:
+                new_record = {
+                    "id": str(uuid.uuid4()), "employee_name": employee_name, "license_number": license_number,
+                    "license_type": license_type, "expiry_date": expiry_date, "is_active": is_active, "notes": notes,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.sia_licenses.insert_one(new_record)
+                created += 1
+        except Exception as e:
+            errors.append(f"Row {idx + 1}: {str(e)}")
+    return BulkImportResponse(created=created, updated=updated, errors=errors)
+
+# ========== Compliance Stats Endpoint ==========
+
+@api_router.get("/compliance/stats")
+async def get_compliance_stats():
+    """Get compliance statistics for RTW and SIA"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    rtw_total = await db.rtw_checks.count_documents({})
+    rtw_valid = await db.rtw_checks.count_documents({"status": "valid"})
+    rtw_expired = await db.rtw_checks.count_documents({"status": "expired"})
+    rtw_pending = await db.rtw_checks.count_documents({"status": "pending"})
+    sia_total = await db.sia_licenses.count_documents({})
+    sia_active = await db.sia_licenses.count_documents({"is_active": True})
+    sia_expiring_soon = await db.sia_licenses.count_documents({"expiry_date": {"$lte": today}, "is_active": True})
+    return {
+        "rtw": {"total": rtw_total, "valid": rtw_valid, "expired": rtw_expired, "pending": rtw_pending},
+        "sia": {"total": sia_total, "active": sia_active, "expiring_soon": sia_expiring_soon}
+    }
+
 # Include the router in the main app
 app.include_router(api_router)
 
