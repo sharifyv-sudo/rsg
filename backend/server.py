@@ -312,6 +312,221 @@ async def delete_sia_license(sia_id: str):
     return {"message": "SIA license deleted successfully"}
 
 
+# ============ Bulk Import Models ============
+
+class RTWBulkItem(BaseModel):
+    employee_name: str
+    document_type: str
+    document_number: str
+    check_date: str
+    expiry_date: Optional[str] = None
+    status: str = "pending"
+    notes: Optional[str] = None
+
+class SIABulkItem(BaseModel):
+    employee_name: str
+    license_number: str
+    license_type: str
+    expiry_date: str
+    is_active: bool = True
+    notes: Optional[str] = None
+
+class BulkImportRequest(BaseModel):
+    items: List[dict]
+
+class BulkImportResponse(BaseModel):
+    created: int
+    updated: int
+    errors: List[str]
+
+
+# ============ Bulk Import Routes ============
+
+@api_router.post("/rtw/bulk-import", response_model=BulkImportResponse)
+async def bulk_import_rtw(request: BulkImportRequest):
+    """Bulk import RTW checks - updates existing by employee name or creates new"""
+    created = 0
+    updated = 0
+    errors = []
+    
+    # Valid document types and statuses
+    valid_doc_types = ["passport", "brp", "share_code", "visa", "settled_status", "pre_settled_status", "other"]
+    valid_statuses = ["valid", "expired", "pending", "not_checked"]
+    
+    for idx, item in enumerate(request.items):
+        try:
+            employee_name = item.get("employee_name", "").strip()
+            if not employee_name:
+                errors.append(f"Row {idx + 1}: Missing employee name")
+                continue
+            
+            document_type = item.get("document_type", "").strip().lower().replace(" ", "_").replace("-", "_")
+            if document_type not in valid_doc_types:
+                # Try to map common variations
+                doc_type_map = {
+                    "biometric_residence_permit": "brp",
+                    "biometric residence permit": "brp",
+                    "share code": "share_code",
+                    "settled status": "settled_status",
+                    "pre settled status": "pre_settled_status",
+                    "presettled status": "pre_settled_status",
+                }
+                document_type = doc_type_map.get(document_type.lower(), document_type)
+                if document_type not in valid_doc_types:
+                    document_type = "other"
+            
+            document_number = item.get("document_number", "").strip()
+            if not document_number:
+                errors.append(f"Row {idx + 1}: Missing document number for {employee_name}")
+                continue
+            
+            check_date = item.get("check_date", "").strip()
+            if not check_date:
+                errors.append(f"Row {idx + 1}: Missing check date for {employee_name}")
+                continue
+            
+            expiry_date = item.get("expiry_date", "").strip() or None
+            
+            status = item.get("status", "pending").strip().lower().replace(" ", "_")
+            if status not in valid_statuses:
+                status = "pending"
+            
+            notes = item.get("notes", "").strip() or None
+            
+            # Check if employee already has an RTW record
+            existing = await db.rtw_checks.find_one({"employee_name": {"$regex": f"^{employee_name}$", "$options": "i"}})
+            
+            if existing:
+                # Update existing record
+                await db.rtw_checks.update_one(
+                    {"id": existing["id"]},
+                    {"$set": {
+                        "document_type": document_type,
+                        "document_number": document_number,
+                        "check_date": check_date,
+                        "expiry_date": expiry_date,
+                        "status": status,
+                        "notes": notes,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                updated += 1
+            else:
+                # Create new record
+                new_record = {
+                    "id": str(uuid.uuid4()),
+                    "employee_name": employee_name,
+                    "document_type": document_type,
+                    "document_number": document_number,
+                    "check_date": check_date,
+                    "expiry_date": expiry_date,
+                    "status": status,
+                    "notes": notes,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.rtw_checks.insert_one(new_record)
+                created += 1
+                
+        except Exception as e:
+            errors.append(f"Row {idx + 1}: {str(e)}")
+    
+    return BulkImportResponse(created=created, updated=updated, errors=errors)
+
+
+@api_router.post("/sia/bulk-import", response_model=BulkImportResponse)
+async def bulk_import_sia(request: BulkImportRequest):
+    """Bulk import SIA licenses - updates existing by employee name or creates new"""
+    created = 0
+    updated = 0
+    errors = []
+    
+    # Valid license types
+    valid_license_types = ["door_supervisor", "security_guard", "cctv", "close_protection", "key_holding", "vehicle_immobiliser"]
+    
+    for idx, item in enumerate(request.items):
+        try:
+            employee_name = item.get("employee_name", "").strip()
+            if not employee_name:
+                errors.append(f"Row {idx + 1}: Missing employee name")
+                continue
+            
+            license_number = item.get("license_number", "").strip()
+            if not license_number:
+                errors.append(f"Row {idx + 1}: Missing license number for {employee_name}")
+                continue
+            
+            license_type = item.get("license_type", "").strip().lower().replace(" ", "_").replace("-", "_")
+            if license_type not in valid_license_types:
+                # Try to map common variations
+                type_map = {
+                    "door supervisor": "door_supervisor",
+                    "security guard": "security_guard",
+                    "cctv operator": "cctv",
+                    "close protection": "close_protection",
+                    "key holding": "key_holding",
+                    "vehicle immobiliser": "vehicle_immobiliser",
+                    "ds": "door_supervisor",
+                    "sg": "security_guard",
+                    "cp": "close_protection",
+                }
+                license_type = type_map.get(license_type.lower(), license_type)
+                if license_type not in valid_license_types:
+                    license_type = "door_supervisor"  # Default
+            
+            expiry_date = item.get("expiry_date", "").strip()
+            if not expiry_date:
+                errors.append(f"Row {idx + 1}: Missing expiry date for {employee_name}")
+                continue
+            
+            # Handle is_active - accept various formats
+            is_active_raw = item.get("is_active", "true")
+            if isinstance(is_active_raw, bool):
+                is_active = is_active_raw
+            else:
+                is_active = str(is_active_raw).strip().lower() in ["true", "yes", "1", "active"]
+            
+            notes = item.get("notes", "").strip() or None
+            
+            # Check if employee already has an SIA record
+            existing = await db.sia_licenses.find_one({"employee_name": {"$regex": f"^{employee_name}$", "$options": "i"}})
+            
+            if existing:
+                # Update existing record
+                await db.sia_licenses.update_one(
+                    {"id": existing["id"]},
+                    {"$set": {
+                        "license_number": license_number,
+                        "license_type": license_type,
+                        "expiry_date": expiry_date,
+                        "is_active": is_active,
+                        "notes": notes,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                updated += 1
+            else:
+                # Create new record
+                new_record = {
+                    "id": str(uuid.uuid4()),
+                    "employee_name": employee_name,
+                    "license_number": license_number,
+                    "license_type": license_type,
+                    "expiry_date": expiry_date,
+                    "is_active": is_active,
+                    "notes": notes,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.sia_licenses.insert_one(new_record)
+                created += 1
+                
+        except Exception as e:
+            errors.append(f"Row {idx + 1}: {str(e)}")
+    
+    return BulkImportResponse(created=created, updated=updated, errors=errors)
+
+
 # ============ Dashboard Stats ============
 
 @api_router.get("/dashboard/stats")
