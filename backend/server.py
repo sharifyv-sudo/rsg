@@ -12,6 +12,7 @@ from datetime import datetime, timezone, timedelta
 import hashlib
 import asyncio
 import resend
+from enum import Enum
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
