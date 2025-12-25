@@ -129,6 +129,12 @@ class SIALicenseUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+# Health check endpoint for Kubernetes - must be at root level (not under /api)
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Kubernetes liveness and readiness probes"""
+    return {"status": "healthy", "service": "right-service-group-compliance"}
+
 # Add your routes to the router instead of directly to app
 @api_router.get("/")
 async def root():
