@@ -23,11 +23,35 @@ import {
   FileUp,
   Download,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  FileDown
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// CSV Export Helper
+const exportToCSV = (data, filename, columns) => {
+  const headers = columns.map(col => col.header).join(',');
+  const rows = data.map(item => 
+    columns.map(col => {
+      const value = col.accessor(item);
+      if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value ?? '';
+    }).join(',')
+  );
+  const csv = [headers, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+  toast.success(`Downloaded ${filename}.csv`);
+};
 
 // UK Government Right to Work Check URL
 const GOV_UK_RTW_URL = "https://www.gov.uk/view-right-to-work";
