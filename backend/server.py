@@ -1651,9 +1651,11 @@ class RightToWorkCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     employee_name: str
     document_type: str
-    document_number: str
+    document_number: Optional[str] = None  # Made optional
     check_date: str
     expiry_date: Optional[str] = None
+    share_code: Optional[str] = None  # Added share code field
+    date_of_birth: Optional[str] = None  # Added DOB for share code verification
     status: str = "pending"
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -1662,9 +1664,11 @@ class RightToWorkCheck(BaseModel):
 class RightToWorkCreate(BaseModel):
     employee_name: str
     document_type: str
-    document_number: str
+    document_number: Optional[str] = None  # Made optional
     check_date: str
     expiry_date: Optional[str] = None
+    share_code: Optional[str] = None  # Added share code field
+    date_of_birth: Optional[str] = None  # Added DOB for share code verification
     status: str = "pending"
     notes: Optional[str] = None
 
@@ -1674,6 +1678,8 @@ class RightToWorkUpdate(BaseModel):
     document_number: Optional[str] = None
     check_date: Optional[str] = None
     expiry_date: Optional[str] = None
+    share_code: Optional[str] = None  # Added share code field
+    date_of_birth: Optional[str] = None  # Added DOB for share code verification
     status: Optional[str] = None
     notes: Optional[str] = None
 
