@@ -332,6 +332,7 @@ function App() {
             <Routes>
               <Route path="/staff" element={<StaffDashboard userId={userId} userName={userName} />} />
               <Route path="/staff/jobs" element={<StaffJobs userId={userId} userName={userName} />} />
+              <Route path="/staff/patrol" element={<StaffPatrol userId={userId} userName={userName} />} />
               <Route path="/staff/timeclock" element={<StaffTimeClock userId={userId} userName={userName} />} />
               <Route path="/staff/payslips" element={<StaffPayslips userId={userId} userName={userName} />} />
               <Route path="/staff/profile" element={<Profile userId={userId} userName={userName} userRole="staff" />} />
