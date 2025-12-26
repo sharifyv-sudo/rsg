@@ -3172,6 +3172,608 @@ async def send_compliance_alert_emails():
     else:
         raise HTTPException(status_code=500, detail=f"Failed to send email: {result.get('error')}")
 
+# ========== Patrol & Inspection Management ==========
+
+class CheckpointQuestion(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    question: str
+    question_type: str = "yes_no"  # yes_no, multiple_choice, text
+    options: List[str] = []  # For multiple choice
+    is_mandatory: bool = True
+    is_random: bool = False  # If true, randomly selected from pool
+
+class Checkpoint(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: Optional[str] = None
+    site_id: Optional[str] = None  # Link to client/job site
+    site_name: Optional[str] = None
+    latitude: float
+    longitude: float
+    radius_meters: int = 50  # GPS accuracy radius
+    check_frequency_minutes: int = 60  # How often to check
+    qr_code: Optional[str] = None  # Base64 QR code image
+    questions: List[CheckpointQuestion] = []
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: Optional[str] = None
+
+class CheckpointCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    site_id: Optional[str] = None
+    site_name: Optional[str] = None
+    latitude: float
+    longitude: float
+    radius_meters: int = 50
+    check_frequency_minutes: int = 60
+    questions: List[dict] = []
+
+class CheckpointUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    site_id: Optional[str] = None
+    site_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    radius_meters: Optional[int] = None
+    check_frequency_minutes: Optional[int] = None
+    questions: Optional[List[dict]] = None
+    is_active: Optional[bool] = None
+
+class PatrolCheckIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    checkpoint_id: str
+    checkpoint_name: str
+    employee_id: str
+    employee_name: str
+    job_id: Optional[str] = None
+    job_name: Optional[str] = None
+    latitude: float
+    longitude: float
+    distance_from_checkpoint: float  # meters
+    location_verified: bool = False
+    scanned_qr: bool = False
+    answers: List[dict] = []  # Question answers
+    notes: Optional[str] = None
+    photos: List[str] = []  # Base64 encoded photos
+    checked_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class PatrolCheckInCreate(BaseModel):
+    checkpoint_id: str
+    latitude: float
+    longitude: float
+    scanned_qr: bool = False
+    answers: List[dict] = []
+    notes: Optional[str] = None
+
+class DefectSeverity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+class DefectStatus(str, Enum):
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+class Defect(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    site_id: Optional[str] = None
+    site_name: Optional[str] = None
+    checkpoint_id: Optional[str] = None
+    checkpoint_name: Optional[str] = None
+    location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    severity: str = "medium"
+    status: str = "open"
+    photos: List[str] = []  # Base64 encoded photos
+    reported_by_id: str
+    reported_by_name: str
+    assigned_to_id: Optional[str] = None
+    assigned_to_name: Optional[str] = None
+    resolution_notes: Optional[str] = None
+    resolved_at: Optional[str] = None
+    resolved_by_id: Optional[str] = None
+    resolved_by_name: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: Optional[str] = None
+
+class DefectCreate(BaseModel):
+    title: str
+    description: str
+    site_id: Optional[str] = None
+    site_name: Optional[str] = None
+    checkpoint_id: Optional[str] = None
+    checkpoint_name: Optional[str] = None
+    location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    severity: str = "medium"
+
+class DefectUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    severity: Optional[str] = None
+    status: Optional[str] = None
+    assigned_to_id: Optional[str] = None
+    assigned_to_name: Optional[str] = None
+    resolution_notes: Optional[str] = None
+
+def generate_qr_code(data: str) -> str:
+    """Generate QR code as base64 string"""
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = BytesIO()
+    img.save(buffer, format='PNG')
+    return base64.b64encode(buffer.getvalue()).decode()
+
+# ========== Checkpoint Endpoints ==========
+
+@api_router.get("/checkpoints")
+async def get_checkpoints(site_id: Optional[str] = None, active_only: bool = True):
+    """Get all checkpoints, optionally filtered by site"""
+    query = {}
+    if site_id:
+        query["site_id"] = site_id
+    if active_only:
+        query["is_active"] = True
+    
+    checkpoints = await db.checkpoints.find(query, {"_id": 0}).to_list(1000)
+    return checkpoints
+
+@api_router.get("/checkpoints/{checkpoint_id}")
+async def get_checkpoint(checkpoint_id: str):
+    """Get a specific checkpoint"""
+    checkpoint = await db.checkpoints.find_one({"id": checkpoint_id}, {"_id": 0})
+    if not checkpoint:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+    return checkpoint
+
+@api_router.post("/checkpoints")
+async def create_checkpoint(input: CheckpointCreate):
+    """Create a new checkpoint"""
+    checkpoint = Checkpoint(
+        name=input.name,
+        description=input.description,
+        site_id=input.site_id,
+        site_name=input.site_name,
+        latitude=input.latitude,
+        longitude=input.longitude,
+        radius_meters=input.radius_meters,
+        check_frequency_minutes=input.check_frequency_minutes,
+        questions=[CheckpointQuestion(**q) for q in input.questions]
+    )
+    
+    # Generate QR code for this checkpoint
+    qr_data = f"RSG_CHECKPOINT:{checkpoint.id}"
+    checkpoint.qr_code = generate_qr_code(qr_data)
+    
+    checkpoint_dict = checkpoint.model_dump()
+    checkpoint_dict['questions'] = [q.model_dump() for q in checkpoint.questions]
+    await db.checkpoints.insert_one(checkpoint_dict)
+    
+    return checkpoint_dict
+
+@api_router.put("/checkpoints/{checkpoint_id}")
+async def update_checkpoint(checkpoint_id: str, input: CheckpointUpdate):
+    """Update a checkpoint"""
+    existing = await db.checkpoints.find_one({"id": checkpoint_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+    
+    update_data = input.model_dump(exclude_unset=True)
+    
+    if 'questions' in update_data and update_data['questions'] is not None:
+        update_data['questions'] = [
+            CheckpointQuestion(**q).model_dump() if isinstance(q, dict) else q 
+            for q in update_data['questions']
+        ]
+    
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    
+    await db.checkpoints.update_one({"id": checkpoint_id}, {"$set": update_data})
+    updated = await db.checkpoints.find_one({"id": checkpoint_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/checkpoints/{checkpoint_id}")
+async def delete_checkpoint(checkpoint_id: str):
+    """Delete a checkpoint (soft delete)"""
+    result = await db.checkpoints.update_one(
+        {"id": checkpoint_id}, 
+        {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+    return {"message": "Checkpoint deactivated"}
+
+@api_router.get("/checkpoints/{checkpoint_id}/qr")
+async def get_checkpoint_qr(checkpoint_id: str):
+    """Get QR code for a checkpoint"""
+    checkpoint = await db.checkpoints.find_one({"id": checkpoint_id}, {"_id": 0})
+    if not checkpoint:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+    
+    if not checkpoint.get('qr_code'):
+        # Generate if missing
+        qr_data = f"RSG_CHECKPOINT:{checkpoint_id}"
+        qr_code = generate_qr_code(qr_data)
+        await db.checkpoints.update_one({"id": checkpoint_id}, {"$set": {"qr_code": qr_code}})
+        return {"qr_code": qr_code}
+    
+    return {"qr_code": checkpoint['qr_code']}
+
+# ========== Patrol Check-In Endpoints ==========
+
+@api_router.post("/patrols/check-in")
+async def patrol_check_in(employee_id: str, input: PatrolCheckInCreate):
+    """Staff checks in at a checkpoint"""
+    # Get checkpoint
+    checkpoint = await db.checkpoints.find_one({"id": input.checkpoint_id}, {"_id": 0})
+    if not checkpoint:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+    
+    # Get employee
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Calculate distance from checkpoint
+    distance = haversine_distance(
+        input.latitude, input.longitude,
+        checkpoint['latitude'], checkpoint['longitude']
+    )
+    
+    # Check if within radius (or QR scanned)
+    location_verified = distance <= checkpoint.get('radius_meters', 50) or input.scanned_qr
+    
+    # Create check-in record
+    check_in = PatrolCheckIn(
+        checkpoint_id=checkpoint['id'],
+        checkpoint_name=checkpoint['name'],
+        employee_id=employee_id,
+        employee_name=employee['name'],
+        job_id=checkpoint.get('site_id'),
+        job_name=checkpoint.get('site_name'),
+        latitude=input.latitude,
+        longitude=input.longitude,
+        distance_from_checkpoint=round(distance, 2),
+        location_verified=location_verified,
+        scanned_qr=input.scanned_qr,
+        answers=input.answers,
+        notes=input.notes
+    )
+    
+    await db.patrol_checkins.insert_one(check_in.model_dump())
+    
+    return {
+        **check_in.model_dump(),
+        "verification_status": "verified" if location_verified else "unverified",
+        "message": "Check-in recorded" + (" - Location verified" if location_verified else " - Outside checkpoint radius")
+    }
+
+@api_router.post("/patrols/check-in/{checkin_id}/photos")
+async def add_patrol_photos(checkin_id: str, photos: List[str]):
+    """Add photos to a patrol check-in"""
+    result = await db.patrol_checkins.update_one(
+        {"id": checkin_id},
+        {"$push": {"photos": {"$each": photos}}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Check-in not found")
+    return {"message": f"Added {len(photos)} photo(s)"}
+
+@api_router.get("/patrols")
+async def get_patrols(
+    employee_id: Optional[str] = None,
+    checkpoint_id: Optional[str] = None,
+    site_id: Optional[str] = None,
+    date: Optional[str] = None,
+    limit: int = 100
+):
+    """Get patrol check-ins with filters"""
+    query = {}
+    if employee_id:
+        query["employee_id"] = employee_id
+    if checkpoint_id:
+        query["checkpoint_id"] = checkpoint_id
+    if site_id:
+        query["job_id"] = site_id
+    if date:
+        query["checked_at"] = {"$regex": f"^{date}"}
+    
+    patrols = await db.patrol_checkins.find(query, {"_id": 0}).sort("checked_at", -1).limit(limit).to_list(limit)
+    return patrols
+
+@api_router.get("/patrols/stats")
+async def get_patrol_stats(site_id: Optional[str] = None, date: Optional[str] = None):
+    """Get patrol statistics"""
+    query = {}
+    if site_id:
+        query["job_id"] = site_id
+    if date:
+        query["checked_at"] = {"$regex": f"^{date}"}
+    else:
+        # Default to today
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        query["checked_at"] = {"$regex": f"^{today}"}
+    
+    total_checkins = await db.patrol_checkins.count_documents(query)
+    verified_checkins = await db.patrol_checkins.count_documents({**query, "location_verified": True})
+    
+    # Get unique checkpoints checked
+    checkins = await db.patrol_checkins.find(query, {"checkpoint_id": 1}).to_list(1000)
+    unique_checkpoints = len(set(c['checkpoint_id'] for c in checkins))
+    
+    # Get total active checkpoints
+    checkpoint_query = {"is_active": True}
+    if site_id:
+        checkpoint_query["site_id"] = site_id
+    total_checkpoints = await db.checkpoints.count_documents(checkpoint_query)
+    
+    # Get unique employees who patrolled
+    unique_employees = len(set(c.get('employee_id') for c in await db.patrol_checkins.find(query, {"employee_id": 1}).to_list(1000)))
+    
+    return {
+        "total_checkins": total_checkins,
+        "verified_checkins": verified_checkins,
+        "unverified_checkins": total_checkins - verified_checkins,
+        "verification_rate": round((verified_checkins / total_checkins * 100) if total_checkins > 0 else 0, 1),
+        "checkpoints_visited": unique_checkpoints,
+        "total_checkpoints": total_checkpoints,
+        "coverage_rate": round((unique_checkpoints / total_checkpoints * 100) if total_checkpoints > 0 else 0, 1),
+        "active_officers": unique_employees
+    }
+
+@api_router.get("/patrols/missed-checkpoints")
+async def get_missed_checkpoints(site_id: Optional[str] = None):
+    """Get checkpoints that haven't been checked within their frequency"""
+    now = datetime.now(timezone.utc)
+    
+    checkpoint_query = {"is_active": True}
+    if site_id:
+        checkpoint_query["site_id"] = site_id
+    
+    checkpoints = await db.checkpoints.find(checkpoint_query, {"_id": 0}).to_list(1000)
+    missed = []
+    
+    for cp in checkpoints:
+        # Get last check-in for this checkpoint
+        last_checkin = await db.patrol_checkins.find_one(
+            {"checkpoint_id": cp['id']},
+            {"_id": 0},
+            sort=[("checked_at", -1)]
+        )
+        
+        if last_checkin:
+            last_time = datetime.fromisoformat(last_checkin['checked_at'].replace('Z', '+00:00'))
+            minutes_since = (now - last_time).total_seconds() / 60
+            
+            if minutes_since > cp.get('check_frequency_minutes', 60):
+                missed.append({
+                    **cp,
+                    "last_checked": last_checkin['checked_at'],
+                    "minutes_overdue": round(minutes_since - cp.get('check_frequency_minutes', 60))
+                })
+        else:
+            # Never checked
+            missed.append({
+                **cp,
+                "last_checked": None,
+                "minutes_overdue": None,
+                "never_checked": True
+            })
+    
+    return missed
+
+# ========== Defect/Incident Endpoints ==========
+
+@api_router.get("/defects")
+async def get_defects(
+    site_id: Optional[str] = None,
+    status: Optional[str] = None,
+    severity: Optional[str] = None,
+    limit: int = 100
+):
+    """Get defects/incidents with filters"""
+    query = {}
+    if site_id:
+        query["site_id"] = site_id
+    if status:
+        query["status"] = status
+    if severity:
+        query["severity"] = severity
+    
+    defects = await db.defects.find(query, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    return defects
+
+@api_router.get("/defects/{defect_id}")
+async def get_defect(defect_id: str):
+    """Get a specific defect"""
+    defect = await db.defects.find_one({"id": defect_id}, {"_id": 0})
+    if not defect:
+        raise HTTPException(status_code=404, detail="Defect not found")
+    return defect
+
+@api_router.post("/defects")
+async def create_defect(employee_id: str, input: DefectCreate):
+    """Report a new defect/incident"""
+    # Get employee
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    defect = Defect(
+        title=input.title,
+        description=input.description,
+        site_id=input.site_id,
+        site_name=input.site_name,
+        checkpoint_id=input.checkpoint_id,
+        checkpoint_name=input.checkpoint_name,
+        location=input.location,
+        latitude=input.latitude,
+        longitude=input.longitude,
+        severity=input.severity,
+        reported_by_id=employee_id,
+        reported_by_name=employee['name']
+    )
+    
+    await db.defects.insert_one(defect.model_dump())
+    return defect.model_dump()
+
+@api_router.post("/defects/{defect_id}/photos")
+async def add_defect_photos(defect_id: str, photos: List[str]):
+    """Add photos to a defect report"""
+    result = await db.defects.update_one(
+        {"id": defect_id},
+        {"$push": {"photos": {"$each": photos}}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Defect not found")
+    
+    updated = await db.defects.find_one({"id": defect_id}, {"_id": 0})
+    return updated
+
+@api_router.put("/defects/{defect_id}")
+async def update_defect(defect_id: str, input: DefectUpdate):
+    """Update a defect"""
+    existing = await db.defects.find_one({"id": defect_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Defect not found")
+    
+    update_data = input.model_dump(exclude_unset=True)
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    
+    # If status changed to resolved, set resolved timestamp
+    if update_data.get('status') == 'resolved' and existing.get('status') != 'resolved':
+        update_data['resolved_at'] = datetime.now(timezone.utc).isoformat()
+    
+    await db.defects.update_one({"id": defect_id}, {"$set": update_data})
+    updated = await db.defects.find_one({"id": defect_id}, {"_id": 0})
+    return updated
+
+@api_router.post("/defects/{defect_id}/resolve")
+async def resolve_defect(defect_id: str, resolver_id: str, resolution_notes: str):
+    """Mark a defect as resolved"""
+    existing = await db.defects.find_one({"id": defect_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Defect not found")
+    
+    # Get resolver info
+    resolver = await db.employees.find_one({"id": resolver_id}, {"_id": 0})
+    resolver_name = resolver['name'] if resolver else "Unknown"
+    
+    update_data = {
+        "status": "resolved",
+        "resolution_notes": resolution_notes,
+        "resolved_at": datetime.now(timezone.utc).isoformat(),
+        "resolved_by_id": resolver_id,
+        "resolved_by_name": resolver_name,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.defects.update_one({"id": defect_id}, {"$set": update_data})
+    updated = await db.defects.find_one({"id": defect_id}, {"_id": 0})
+    return updated
+
+@api_router.get("/defects/stats")
+async def get_defect_stats(site_id: Optional[str] = None):
+    """Get defect statistics"""
+    query = {}
+    if site_id:
+        query["site_id"] = site_id
+    
+    total = await db.defects.count_documents(query)
+    open_defects = await db.defects.count_documents({**query, "status": "open"})
+    in_progress = await db.defects.count_documents({**query, "status": "in_progress"})
+    resolved = await db.defects.count_documents({**query, "status": "resolved"})
+    
+    # By severity
+    critical = await db.defects.count_documents({**query, "severity": "critical", "status": {"$ne": "resolved"}})
+    high = await db.defects.count_documents({**query, "severity": "high", "status": {"$ne": "resolved"}})
+    medium = await db.defects.count_documents({**query, "severity": "medium", "status": {"$ne": "resolved"}})
+    low = await db.defects.count_documents({**query, "severity": "low", "status": {"$ne": "resolved"}})
+    
+    return {
+        "total": total,
+        "by_status": {
+            "open": open_defects,
+            "in_progress": in_progress,
+            "resolved": resolved
+        },
+        "by_severity": {
+            "critical": critical,
+            "high": high,
+            "medium": medium,
+            "low": low
+        },
+        "urgent_count": critical + high
+    }
+
+# ========== Staff Patrol Endpoints (for mobile/staff portal) ==========
+
+@api_router.get("/staff/{employee_id}/checkpoints")
+async def get_staff_checkpoints(employee_id: str):
+    """Get checkpoints assigned to staff's current job"""
+    # Get employee's current/upcoming jobs
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    jobs = await db.jobs.find({
+        "date": {"$gte": today},
+        "assigned_employees.employee_id": employee_id
+    }, {"_id": 0}).to_list(100)
+    
+    if not jobs:
+        return []
+    
+    # Get checkpoints for these job sites
+    site_ids = list(set(j.get('client') for j in jobs if j.get('client')))
+    checkpoints = await db.checkpoints.find({
+        "$or": [
+            {"site_name": {"$in": site_ids}},
+            {"site_id": {"$in": [j.get('id') for j in jobs]}}
+        ],
+        "is_active": True
+    }, {"_id": 0}).to_list(1000)
+    
+    # Add last check-in info
+    for cp in checkpoints:
+        last_checkin = await db.patrol_checkins.find_one(
+            {"checkpoint_id": cp['id'], "employee_id": employee_id},
+            {"_id": 0},
+            sort=[("checked_at", -1)]
+        )
+        cp['last_checked_by_me'] = last_checkin['checked_at'] if last_checkin else None
+    
+    return checkpoints
+
+@api_router.get("/staff/{employee_id}/patrol-history")
+async def get_staff_patrol_history(employee_id: str, limit: int = 50):
+    """Get staff's patrol history"""
+    patrols = await db.patrol_checkins.find(
+        {"employee_id": employee_id},
+        {"_id": 0}
+    ).sort("checked_at", -1).limit(limit).to_list(limit)
+    return patrols
+
+@api_router.get("/staff/{employee_id}/defects")
+async def get_staff_defects(employee_id: str, limit: int = 50):
+    """Get defects reported by staff"""
+    defects = await db.defects.find(
+        {"reported_by_id": employee_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    return defects
+
 # Include the router in the main app (AFTER all routes are defined)
 app.include_router(api_router)
 
