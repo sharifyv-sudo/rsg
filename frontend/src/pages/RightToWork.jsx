@@ -21,11 +21,16 @@ import {
   Clock,
   Upload,
   FileUp,
-  Download
+  Download,
+  ExternalLink,
+  ShieldCheck
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// UK Government Right to Work Check URL
+const GOV_UK_RTW_URL = "https://www.gov.uk/view-right-to-work";
 
 // RTW Status options
 const RTW_STATUS_OPTIONS = [
@@ -70,7 +75,7 @@ const parseCSV = (text) => {
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_').replace(/['"]/g, ''));
   const data = [];
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+    const values = lines[i].split(',').map(v => v.trim().replace(/^['"']|['"']$/g, ''));
     if (values.length >= 2) {
       const row = {};
       headers.forEach((header, idx) => {
@@ -130,7 +135,7 @@ const FileDropZone = ({ onFileAccepted, isLoading }) => {
   };
 
   const downloadTemplate = () => {
-    const content = 'employee_name,document_type,document_number,check_date,expiry_date,status,notes\nJohn Smith,passport,AB123456,2025-01-15,2030-01-15,valid,Verified in person';
+    const content = 'employee_name,document_type,document_number,share_code,date_of_birth,check_date,expiry_date,status,notes\nJohn Smith,share_code,,ABC123XYZ,1990-05-15,2025-01-15,2025-07-15,valid,Verified online';
     const blob = new Blob([content], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -169,6 +174,40 @@ const FileDropZone = ({ onFileAccepted, isLoading }) => {
   );
 };
 
+// Verify Share Code Button Component
+const VerifyShareCodeButton = ({ shareCode, dateOfBirth, employeeName }) => {
+  const handleVerify = () => {
+    // Open the government website in a new tab
+    window.open(GOV_UK_RTW_URL, '_blank', 'noopener,noreferrer');
+    
+    // Show toast with instructions
+    toast.info(
+      <div>
+        <p className="font-medium">Verify Share Code on Gov.uk</p>
+        <p className="text-sm mt-1">Share Code: <span className="font-mono font-bold">{shareCode}</span></p>
+        {dateOfBirth && <p className="text-sm">Date of Birth: {dateOfBirth}</p>}
+        <p className="text-sm">Employee: {employeeName}</p>
+      </div>,
+      { duration: 10000 }
+    );
+  };
+
+  if (!shareCode) return null;
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleVerify}
+      className="gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+      title="Verify share code on Gov.uk"
+    >
+      <ShieldCheck className="h-3 w-3" />
+      Verify
+    </Button>
+  );
+};
+
 const RightToWork = () => {
   const [records, setRecords] = useState([]);
   const [stats, setStats] = useState(null);
@@ -181,6 +220,8 @@ const RightToWork = () => {
     employee_name: "",
     document_type: "",
     document_number: "",
+    share_code: "",
+    date_of_birth: "",
     check_date: "",
     expiry_date: "",
     status: "pending",
@@ -232,7 +273,9 @@ const RightToWork = () => {
     setForm({
       employee_name: record.employee_name,
       document_type: record.document_type,
-      document_number: record.document_number,
+      document_number: record.document_number || "",
+      share_code: record.share_code || "",
+      date_of_birth: record.date_of_birth || "",
       check_date: record.check_date,
       expiry_date: record.expiry_date || "",
       status: record.status,
@@ -260,6 +303,8 @@ const RightToWork = () => {
       employee_name: "",
       document_type: "",
       document_number: "",
+      share_code: "",
+      date_of_birth: "",
       check_date: "",
       expiry_date: "",
       status: "pending",
@@ -296,15 +341,42 @@ const RightToWork = () => {
 
   const filteredRecords = records.filter(record =>
     record.employee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    record.document_number.toLowerCase().includes(searchTerm.toLowerCase())
+    (record.document_number && record.document_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (record.share_code && record.share_code.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // Check if document type is share_code to show/hide fields
+  const isShareCodeType = form.document_type === "share_code";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div>
         <p className="text-sm text-muted-foreground uppercase tracking-wider font-medium">COMPLIANCE</p>
         <h1 className="text-3xl font-bold text-foreground">Right to Work Checks</h1>
       </div>
+
+      {/* Gov.uk Link Banner */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-6 w-6 text-blue-600" />
+              <div>
+                <p className="font-medium text-blue-900">UK Government Right to Work Check</p>
+                <p className="text-sm text-blue-700">Verify share codes online at Gov.uk</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-100"
+              onClick={() => window.open(GOV_UK_RTW_URL, '_blank', 'noopener,noreferrer')}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open Gov.uk
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -360,7 +432,7 @@ const RightToWork = () => {
           <CardTitle className="text-lg flex items-center gap-2">
             <Upload className="h-5 w-5 text-primary" /> Bulk Import
           </CardTitle>
-          <CardDescription>Upload a CSV file to import multiple RTW checks at once. Existing employees will be updated.</CardDescription>
+          <CardDescription>Upload a CSV file to import multiple RTW checks at once. Document numbers are optional.</CardDescription>
         </CardHeader>
         <CardContent>
           <FileDropZone onFileAccepted={handleFileAccepted} isLoading={isImporting} />
@@ -374,8 +446,8 @@ const RightToWork = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search employees..."
-                className="pl-10 w-80"
+                placeholder="Search by name, document or share code..."
+                className="pl-10 w-96"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -384,7 +456,7 @@ const RightToWork = () => {
               <DialogTrigger asChild>
                 <Button className="gap-2" data-testid="add-rtw-btn"><Plus className="h-4 w-4" /> Add RTW Check</Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>{editingRecord ? "Edit RTW Check" : "Add RTW Check"}</DialogTitle>
                   <DialogDescription>{editingRecord ? "Update the Right to Work check details" : "Add a new Right to Work check record"}</DialogDescription>
@@ -403,18 +475,52 @@ const RightToWork = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Document Number *</Label>
-                    <Input value={form.document_number} onChange={(e) => setForm({ ...form, document_number: e.target.value })} required />
-                  </div>
+                  
+                  {/* Conditional fields based on document type */}
+                  {isShareCodeType ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Share Code *</Label>
+                        <Input 
+                          value={form.share_code} 
+                          onChange={(e) => setForm({ ...form, share_code: e.target.value.toUpperCase() })} 
+                          placeholder="e.g., ABC123XYZ"
+                          maxLength={9}
+                          required
+                        />
+                        <p className="text-xs text-muted-foreground">9-character code from Gov.uk</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Date of Birth *</Label>
+                        <Input 
+                          type="date" 
+                          value={form.date_of_birth} 
+                          onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} 
+                          required
+                        />
+                        <p className="text-xs text-muted-foreground">Required for share code verification</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Document Number <span className="text-muted-foreground text-xs">(Optional)</span></Label>
+                      <Input value={form.document_number} onChange={(e) => setForm({ ...form, document_number: e.target.value })} />
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Check Date *</Label>
                       <Input type="date" value={form.check_date} onChange={(e) => setForm({ ...form, check_date: e.target.value })} required />
                     </div>
                     <div className="space-y-2">
-                      <Label>Expiry Date</Label>
-                      <Input type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} />
+                      <Label>Expiry Date {isShareCodeType && <span className="text-red-500">*</span>}</Label>
+                      <Input 
+                        type="date" 
+                        value={form.expiry_date} 
+                        onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} 
+                        required={isShareCodeType}
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -431,6 +537,17 @@ const RightToWork = () => {
                     <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes..." />
                   </div>
                   <DialogFooter>
+                    {isShareCodeType && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => window.open(GOV_UK_RTW_URL, '_blank', 'noopener,noreferrer')}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Verify on Gov.uk
+                      </Button>
+                    )}
                     <Button type="submit">{editingRecord ? "Update" : "Add"} Record</Button>
                   </DialogFooter>
                 </form>
@@ -454,7 +571,7 @@ const RightToWork = () => {
                   <TableRow>
                     <TableHead>NAME</TableHead>
                     <TableHead>DOCUMENT TYPE</TableHead>
-                    <TableHead>DOCUMENT NUMBER</TableHead>
+                    <TableHead>DOCUMENT / SHARE CODE</TableHead>
                     <TableHead>CHECK DATE</TableHead>
                     <TableHead>EXPIRY DATE</TableHead>
                     <TableHead>STATUS</TableHead>
@@ -470,7 +587,22 @@ const RightToWork = () => {
                           {RTW_DOCUMENT_TYPES.find((t) => t.value === record.document_type)?.label || record.document_type}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-mono">{record.document_number}</TableCell>
+                      <TableCell>
+                        {record.share_code ? (
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{record.share_code}</span>
+                            <VerifyShareCodeButton 
+                              shareCode={record.share_code} 
+                              dateOfBirth={record.date_of_birth}
+                              employeeName={record.employee_name}
+                            />
+                          </div>
+                        ) : record.document_number ? (
+                          <span className="font-mono">{record.document_number}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>{record.check_date}</TableCell>
                       <TableCell>
                         {record.expiry_date ? (
