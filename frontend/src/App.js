@@ -139,7 +139,7 @@ const AdminSidebar = ({ onLogout, userId, userName }) => {
 };
 
 // Staff Sidebar
-const StaffSidebar = ({ userName, onLogout }) => {
+const StaffSidebar = ({ userName, userId, onLogout }) => {
   const location = useLocation();
   
   const navItems = [
@@ -147,6 +147,10 @@ const StaffSidebar = ({ userName, onLogout }) => {
     { path: "/staff/jobs", icon: Briefcase, label: "Jobs" },
     { path: "/staff/timeclock", icon: Clock, label: "Time Clock" },
     { path: "/staff/payslips", icon: FileText, label: "Payslips" },
+  ];
+
+  const settingsItems = [
+    { path: "/staff/profile", icon: User, label: "My Profile" },
   ];
 
   return (
@@ -185,6 +189,25 @@ const StaffSidebar = ({ userName, onLogout }) => {
             </NavLink>
           );
         })}
+
+        {/* Settings Section */}
+        <div className="pt-4 mt-4 border-t border-border">
+          <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Account</p>
+          {settingsItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </NavLink>
+            );
+          })}
+        </div>
       </nav>
       
       <div className="p-4 border-t border-border">
