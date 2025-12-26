@@ -2067,6 +2067,639 @@ async def health_check():
     """Health check endpoint for Kubernetes liveness and readiness probes"""
     return {"status": "healthy", "service": "right-service-group-payroll"}
 
+# ========== Compliance Alerts & Notifications ==========
+
+class ComplianceAlert(BaseModel):
+    type: str  # "rtw" or "sia"
+    employee_name: str
+    document_type: Optional[str] = None
+    expiry_date: str
+    days_until_expiry: int
+    status: str  # "expiring_soon", "expired"
+    record_id: str
+
+class NotifyStaffRequest(BaseModel):
+    job_id: str
+    employee_ids: List[str]
+    message: Optional[str] = None
+
+class AvailabilityCheckRequest(BaseModel):
+    job_id: str
+
+@api_router.get("/compliance/alerts")
+async def get_compliance_alerts():
+    """Get all compliance alerts (expiring RTW and SIA documents)"""
+    today = datetime.now(timezone.utc).date()
+    alerts = []
+    
+    # Check RTW expiring within 30 days
+    rtw_records = await db.rtw_checks.find({}, {"_id": 0}).to_list(1000)
+    for record in rtw_records:
+        if record.get('expiry_date'):
+            try:
+                expiry = datetime.strptime(record['expiry_date'], "%Y-%m-%d").date()
+                days_until = (expiry - today).days
+                if days_until <= 30:
+                    alerts.append(ComplianceAlert(
+                        type="rtw",
+                        employee_name=record.get('employee_name', 'Unknown'),
+                        document_type=record.get('document_type'),
+                        expiry_date=record['expiry_date'],
+                        days_until_expiry=days_until,
+                        status="expired" if days_until < 0 else "expiring_soon",
+                        record_id=record.get('id', '')
+                    ))
+            except:
+                pass
+    
+    # Check SIA licenses expiring within 30 days
+    sia_records = await db.sia_licenses.find({}, {"_id": 0}).to_list(1000)
+    for record in sia_records:
+        if record.get('expiry_date'):
+            try:
+                expiry = datetime.strptime(record['expiry_date'], "%Y-%m-%d").date()
+                days_until = (expiry - today).days
+                if days_until <= 30:
+                    alerts.append(ComplianceAlert(
+                        type="sia",
+                        employee_name=record.get('employee_name', 'Unknown'),
+                        document_type=record.get('license_type'),
+                        expiry_date=record['expiry_date'],
+                        days_until_expiry=days_until,
+                        status="expired" if days_until < 0 else "expiring_soon",
+                        record_id=record.get('id', '')
+                    ))
+            except:
+                pass
+    
+    # Sort by days until expiry (most urgent first)
+    alerts.sort(key=lambda x: x.days_until_expiry)
+    
+    return {
+        "alerts": [a.model_dump() for a in alerts],
+        "total_alerts": len(alerts),
+        "expired_count": len([a for a in alerts if a.status == "expired"]),
+        "expiring_soon_count": len([a for a in alerts if a.status == "expiring_soon"])
+    }
+
+@api_router.get("/compliance/stats")
+async def get_compliance_stats():
+    """Get compliance statistics for dashboard"""
+    today = datetime.now(timezone.utc).date()
+    
+    # RTW stats
+    rtw_records = await db.rtw_checks.find({}, {"_id": 0}).to_list(1000)
+    rtw_valid = 0
+    rtw_expiring = 0
+    rtw_expired = 0
+    
+    for record in rtw_records:
+        if record.get('expiry_date'):
+            try:
+                expiry = datetime.strptime(record['expiry_date'], "%Y-%m-%d").date()
+                days_until = (expiry - today).days
+                if days_until < 0:
+                    rtw_expired += 1
+                elif days_until <= 30:
+                    rtw_expiring += 1
+                else:
+                    rtw_valid += 1
+            except:
+                pass
+        elif record.get('status') == 'valid':
+            rtw_valid += 1
+    
+    # SIA stats
+    sia_records = await db.sia_licenses.find({}, {"_id": 0}).to_list(1000)
+    sia_valid = 0
+    sia_expiring = 0
+    sia_expired = 0
+    
+    for record in sia_records:
+        if record.get('expiry_date'):
+            try:
+                expiry = datetime.strptime(record['expiry_date'], "%Y-%m-%d").date()
+                days_until = (expiry - today).days
+                if days_until < 0:
+                    sia_expired += 1
+                elif days_until <= 30:
+                    sia_expiring += 1
+                else:
+                    sia_valid += 1
+            except:
+                pass
+    
+    return {
+        "rtw": {
+            "total": len(rtw_records),
+            "valid": rtw_valid,
+            "expiring_soon": rtw_expiring,
+            "expired": rtw_expired
+        },
+        "sia": {
+            "total": len(sia_records),
+            "valid": sia_valid,
+            "expiring_soon": sia_expiring,
+            "expired": sia_expired
+        }
+    }
+
+@api_router.get("/jobs/{job_id}/available-staff")
+async def get_available_staff_for_job(job_id: str):
+    """Get list of available staff for a job, checking conflicts and availability"""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job_date = job.get('date')
+    employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
+    
+    # Get all jobs on the same date to check conflicts
+    same_day_jobs = await db.jobs.find({"date": job_date}, {"_id": 0}).to_list(100)
+    
+    available_staff = []
+    for emp in employees:
+        emp_id = emp.get('id')
+        
+        # Check basic availability status
+        if emp.get('availability') != 'available':
+            emp['availability_status'] = 'unavailable'
+            emp['availability_reason'] = f"Status: {emp.get('availability', 'unknown')}"
+            available_staff.append(emp)
+            continue
+        
+        # Check if already assigned to this job
+        current_assigned = [e.get('employee_id') for e in job.get('assigned_employees', [])]
+        if emp_id in current_assigned:
+            emp['availability_status'] = 'assigned'
+            emp['availability_reason'] = 'Already assigned to this job'
+            available_staff.append(emp)
+            continue
+        
+        # Check if assigned to another job on same date with overlapping times
+        conflict_job = None
+        for other_job in same_day_jobs:
+            if other_job.get('id') == job_id:
+                continue
+            other_assigned = [e.get('employee_id') for e in other_job.get('assigned_employees', [])]
+            if emp_id in other_assigned:
+                # Check time overlap
+                job_start = job.get('start_time', '00:00')
+                job_end = job.get('end_time', '23:59')
+                other_start = other_job.get('start_time', '00:00')
+                other_end = other_job.get('end_time', '23:59')
+                
+                # Simple overlap check
+                if not (job_end <= other_start or job_start >= other_end):
+                    conflict_job = other_job
+                    break
+        
+        if conflict_job:
+            emp['availability_status'] = 'conflict'
+            emp['availability_reason'] = f"Assigned to: {conflict_job.get('name')} ({conflict_job.get('start_time')}-{conflict_job.get('end_time')})"
+        else:
+            emp['availability_status'] = 'available'
+            emp['availability_reason'] = 'Available for this shift'
+        
+        available_staff.append(emp)
+    
+    # Sort: available first, then assigned, then conflicts, then unavailable
+    status_order = {'available': 0, 'assigned': 1, 'conflict': 2, 'unavailable': 3}
+    available_staff.sort(key=lambda x: status_order.get(x.get('availability_status', 'unavailable'), 4))
+    
+    return {
+        "job": job,
+        "staff": available_staff,
+        "summary": {
+            "total": len(available_staff),
+            "available": len([s for s in available_staff if s.get('availability_status') == 'available']),
+            "assigned": len([s for s in available_staff if s.get('availability_status') == 'assigned']),
+            "conflicts": len([s for s in available_staff if s.get('availability_status') == 'conflict']),
+            "unavailable": len([s for s in available_staff if s.get('availability_status') == 'unavailable'])
+        }
+    }
+
+@api_router.post("/jobs/{job_id}/notify-staff")
+async def notify_staff_about_job(job_id: str, request: NotifyStaffRequest):
+    """Send email notifications to selected staff about a job opening"""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    notifications_sent = 0
+    notifications_failed = 0
+    
+    for emp_id in request.employee_ids:
+        employee = await db.employees.find_one({"id": emp_id}, {"_id": 0})
+        if employee and employee.get('email'):
+            # Generate notification email
+            custom_message = request.message or "We have a new shift available that matches your skills."
+            email_html = generate_job_notification_email(employee['name'], job, custom_message)
+            
+            result = await send_email_async(
+                employee['email'],
+                f"New Shift Available: {job.get('name', 'Job')} - {job.get('date', '')}",
+                email_html
+            )
+            
+            if result.get('success'):
+                notifications_sent += 1
+            else:
+                notifications_failed += 1
+    
+    return {
+        "success": True,
+        "notifications_sent": notifications_sent,
+        "notifications_failed": notifications_failed,
+        "job_name": job.get('name')
+    }
+
+def generate_job_notification_email(employee_name: str, job: dict, custom_message: str = "") -> str:
+    """Generate HTML email for job availability notification"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: #0F64A8; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 20px; background: #f9f9f9; }}
+            .job-details {{ background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #0F64A8; }}
+            .detail-row {{ padding: 8px 0; border-bottom: 1px solid #eee; }}
+            .label {{ font-weight: bold; color: #666; display: inline-block; width: 120px; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+            .cta-button {{ background: #0F64A8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 15px; }}
+            .highlight {{ background: #FEF3C7; padding: 10px; border-radius: 5px; margin: 10px 0; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1 style="margin: 0;">Right Service Group</h1>
+                <p style="margin: 5px 0 0 0;">New Shift Available</p>
+            </div>
+            <div class="content">
+                <p>Hi {employee_name},</p>
+                <p>{custom_message}</p>
+                
+                <div class="job-details">
+                    <h3 style="color: #0F64A8; margin-top: 0;">📋 {job.get('name', 'N/A')}</h3>
+                    <div class="detail-row">
+                        <span class="label">📅 Date:</span>
+                        <span>{job.get('date', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">⏰ Time:</span>
+                        <span>{job.get('start_time', 'N/A')} - {job.get('end_time', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">📍 Location:</span>
+                        <span>{job.get('location', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">🏢 Client:</span>
+                        <span>{job.get('client', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">💼 Type:</span>
+                        <span>{job.get('job_type', 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">💰 Rate:</span>
+                        <span>£{job.get('hourly_rate', 0):.2f}/hr</span>
+                    </div>
+                </div>
+                
+                <div class="highlight">
+                    <strong>⚡ Interested?</strong> Log in to the Staff Portal to sign up for this shift before it fills up!
+                </div>
+                
+                {f'<p style="color: #666; font-size: 14px;"><strong>📍 Note:</strong> GPS clock-in required - you must be within 500m of the location.</p>' if job.get('require_location') else ''}
+            </div>
+            <div class="footer">
+                <p>Right Service Group | Professional Staffing Solutions</p>
+                <p>This is an automated message. Please do not reply directly to this email.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+# ========== Payslip PDF Generation ==========
+
+def generate_payslip_html(payslip: dict, employee: dict) -> str:
+    """Generate HTML for payslip PDF"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; color: #333; margin: 0; padding: 20px; }}
+            .payslip {{ max-width: 800px; margin: 0 auto; border: 1px solid #ddd; }}
+            .header {{ background: #0F64A8; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
+            .logo {{ font-size: 24px; font-weight: bold; }}
+            .payslip-title {{ text-align: right; }}
+            .section {{ padding: 20px; border-bottom: 1px solid #eee; }}
+            .section-title {{ font-weight: bold; color: #0F64A8; margin-bottom: 10px; text-transform: uppercase; font-size: 12px; }}
+            .row {{ display: flex; justify-content: space-between; padding: 5px 0; }}
+            .label {{ color: #666; }}
+            .value {{ font-weight: 500; }}
+            .earnings-table {{ width: 100%; border-collapse: collapse; margin: 10px 0; }}
+            .earnings-table th, .earnings-table td {{ padding: 10px; text-align: left; border-bottom: 1px solid #eee; }}
+            .earnings-table th {{ background: #f5f5f5; font-weight: 600; }}
+            .total-row {{ background: #f0f7ff; font-weight: bold; }}
+            .net-pay {{ background: #0F64A8; color: white; padding: 20px; text-align: center; }}
+            .net-pay .amount {{ font-size: 32px; font-weight: bold; }}
+            .footer {{ padding: 15px; text-align: center; color: #666; font-size: 11px; background: #f9f9f9; }}
+        </style>
+    </head>
+    <body>
+        <div class="payslip">
+            <div class="header">
+                <div class="logo">Right Service Group</div>
+                <div class="payslip-title">
+                    <div style="font-size: 18px; font-weight: bold;">PAYSLIP</div>
+                    <div style="font-size: 12px;">{payslip.get('period', 'N/A')}</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Employee Details</div>
+                <div class="row">
+                    <span class="label">Name:</span>
+                    <span class="value">{employee.get('name', 'N/A')}</span>
+                </div>
+                <div class="row">
+                    <span class="label">Employee ID:</span>
+                    <span class="value">{employee.get('id', 'N/A')[:8].upper()}</span>
+                </div>
+                <div class="row">
+                    <span class="label">Department:</span>
+                    <span class="value">{employee.get('department', 'N/A')}</span>
+                </div>
+                <div class="row">
+                    <span class="label">Position:</span>
+                    <span class="value">{employee.get('position', 'N/A')}</span>
+                </div>
+                <div class="row">
+                    <span class="label">NI Number:</span>
+                    <span class="value">{employee.get('ni_number', 'N/A')}</span>
+                </div>
+                <div class="row">
+                    <span class="label">Tax Code:</span>
+                    <span class="value">{employee.get('tax_code', '1257L')}</span>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Earnings</div>
+                <table class="earnings-table">
+                    <tr>
+                        <th>Description</th>
+                        <th style="text-align: right;">Hours</th>
+                        <th style="text-align: right;">Rate</th>
+                        <th style="text-align: right;">Amount</th>
+                    </tr>
+                    <tr>
+                        <td>Basic Pay</td>
+                        <td style="text-align: right;">{payslip.get('hours_worked', 0):.1f}</td>
+                        <td style="text-align: right;">£{payslip.get('hourly_rate', 0):.2f}</td>
+                        <td style="text-align: right;">£{payslip.get('gross_salary', 0):.2f}</td>
+                    </tr>
+                    {f'<tr><td>Overtime</td><td style="text-align: right;">{payslip.get("overtime_hours", 0):.1f}</td><td style="text-align: right;">£{payslip.get("overtime_rate", 0):.2f}</td><td style="text-align: right;">£{payslip.get("overtime_pay", 0):.2f}</td></tr>' if payslip.get('overtime_hours') else ''}
+                    <tr class="total-row">
+                        <td colspan="3">Gross Pay</td>
+                        <td style="text-align: right;">£{payslip.get('gross_salary', 0):.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Deductions</div>
+                <table class="earnings-table">
+                    <tr>
+                        <th>Description</th>
+                        <th style="text-align: right;">Amount</th>
+                    </tr>
+                    <tr>
+                        <td>Income Tax (PAYE)</td>
+                        <td style="text-align: right;">£{payslip.get('tax', 0):.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>National Insurance</td>
+                        <td style="text-align: right;">£{payslip.get('ni', 0):.2f}</td>
+                    </tr>
+                    {f'<tr><td>Other Deductions</td><td style="text-align: right;">£{payslip.get("other_deductions", 0):.2f}</td></tr>' if payslip.get('other_deductions') else ''}
+                    <tr class="total-row">
+                        <td>Total Deductions</td>
+                        <td style="text-align: right;">£{(payslip.get('tax', 0) + payslip.get('ni', 0) + payslip.get('other_deductions', 0)):.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="net-pay">
+                <div style="font-size: 12px; text-transform: uppercase; margin-bottom: 5px;">Net Pay</div>
+                <div class="amount">£{payslip.get('net_salary', 0):.2f}</div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Payment Details</div>
+                <div class="row">
+                    <span class="label">Payment Method:</span>
+                    <span class="value">BACS Transfer</span>
+                </div>
+                <div class="row">
+                    <span class="label">Bank Account:</span>
+                    <span class="value">****{employee.get('bank_account', '')[-4:] if employee.get('bank_account') else 'N/A'}</span>
+                </div>
+                <div class="row">
+                    <span class="label">Sort Code:</span>
+                    <span class="value">{employee.get('sort_code', 'N/A')}</span>
+                </div>
+                <div class="row">
+                    <span class="label">Payment Date:</span>
+                    <span class="value">{payslip.get('payment_date', 'N/A')}</span>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p>Right Service Group Ltd | Registered in England & Wales</p>
+                <p>This payslip is computer generated and does not require a signature.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+@api_router.post("/payslips/{payslip_id}/send-email")
+async def send_payslip_email(payslip_id: str):
+    """Send payslip to employee via email"""
+    payslip = await db.payslips.find_one({"id": payslip_id}, {"_id": 0})
+    if not payslip:
+        raise HTTPException(status_code=404, detail="Payslip not found")
+    
+    employee = await db.employees.find_one({"id": payslip.get('employee_id')}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    if not employee.get('email'):
+        raise HTTPException(status_code=400, detail="Employee has no email address")
+    
+    # Generate payslip HTML
+    payslip_html = generate_payslip_html(payslip, employee)
+    
+    # Wrap in email template
+    email_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 800px; margin: 0 auto; padding: 20px; }}
+            .header {{ text-align: center; padding: 20px; }}
+            .message {{ background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h2 style="color: #0F64A8;">Your Payslip is Ready</h2>
+            </div>
+            <div class="message">
+                <p>Hi {employee.get('name', 'there')},</p>
+                <p>Your payslip for <strong>{payslip.get('period', 'this period')}</strong> is now available. Please find the details below:</p>
+            </div>
+            {payslip_html}
+            <div class="footer">
+                <p>If you have any questions about your payslip, please contact the HR department.</p>
+                <p>Right Service Group | Professional Staffing Solutions</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    result = await send_email_async(
+        employee['email'],
+        f"Your Payslip - {payslip.get('period', '')}",
+        email_html
+    )
+    
+    if result.get('success'):
+        # Update payslip to mark as sent
+        await db.payslips.update_one(
+            {"id": payslip_id}, 
+            {"$set": {"email_sent": True, "email_sent_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        return {"success": True, "message": f"Payslip sent to {employee['email']}"}
+    else:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {result.get('error')}")
+
+@api_router.get("/payslips/{payslip_id}/html")
+async def get_payslip_html(payslip_id: str):
+    """Get payslip as HTML for PDF generation"""
+    payslip = await db.payslips.find_one({"id": payslip_id}, {"_id": 0})
+    if not payslip:
+        raise HTTPException(status_code=404, detail="Payslip not found")
+    
+    employee = await db.employees.find_one({"id": payslip.get('employee_id')}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    return {"html": generate_payslip_html(payslip, employee)}
+
+# ========== Send Compliance Alert Emails ==========
+
+def generate_compliance_alert_email(alerts: list, recipient_name: str = "Admin") -> str:
+    """Generate HTML email for compliance alerts"""
+    alert_rows = ""
+    for alert in alerts:
+        status_color = "#DC2626" if alert['status'] == 'expired' else "#F59E0B"
+        status_text = "EXPIRED" if alert['status'] == 'expired' else f"Expires in {alert['days_until_expiry']} days"
+        doc_type = alert.get('document_type', 'N/A').replace('_', ' ').title()
+        
+        alert_rows += f"""
+        <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">{alert['employee_name']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">{alert['type'].upper()}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">{doc_type}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">{alert['expiry_date']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; color: {status_color}; font-weight: bold;">{status_text}</td>
+        </tr>
+        """
+    
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 700px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: #0F64A8; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 20px; }}
+            .alert-box {{ background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 15px 0; }}
+            table {{ width: 100%; border-collapse: collapse; }}
+            th {{ background: #f5f5f5; padding: 12px; text-align: left; font-weight: 600; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1 style="margin: 0;">⚠️ Compliance Alert</h1>
+                <p style="margin: 5px 0 0 0;">Right Service Group</p>
+            </div>
+            <div class="content">
+                <p>Hi {recipient_name},</p>
+                <div class="alert-box">
+                    <strong>Action Required:</strong> The following documents are expired or expiring soon and require immediate attention.
+                </div>
+                
+                <table>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Type</th>
+                        <th>Document</th>
+                        <th>Expiry Date</th>
+                        <th>Status</th>
+                    </tr>
+                    {alert_rows}
+                </table>
+                
+                <p style="margin-top: 20px;">Please log in to the Admin Portal to review and update these records.</p>
+            </div>
+            <div class="footer">
+                <p>This is an automated compliance alert from Right Service Group.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+@api_router.post("/compliance/send-alerts")
+async def send_compliance_alert_emails():
+    """Send compliance alert emails to admin"""
+    alerts_response = await get_compliance_alerts()
+    alerts = alerts_response.get('alerts', [])
+    
+    if not alerts:
+        return {"success": True, "message": "No alerts to send"}
+    
+    email_html = generate_compliance_alert_email(alerts)
+    
+    result = await send_email_async(
+        ADMIN_EMAIL,
+        f"⚠️ Compliance Alert: {len(alerts)} document(s) require attention",
+        email_html
+    )
+    
+    if result.get('success'):
+        return {"success": True, "message": f"Alert email sent with {len(alerts)} items"}
+    else:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {result.get('error')}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
