@@ -526,6 +526,16 @@ export default function Jobs() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 text-[#0F64A8]"
+                            onClick={() => handleOpenNotifyDialog(job)}
+                            title="Notify Available Staff"
+                            data-testid={`notify-staff-${job.id}`}
+                          >
+                            <Bell className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8"
                             onClick={() => handleExport(job)}
                             disabled={!job.assigned_employees?.length}
@@ -543,6 +553,10 @@ export default function Jobs() {
                               <DropdownMenuItem onClick={() => handleOpenDialog(job)}>
                                 <Pencil className="w-4 h-4 mr-2" />
                                 Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenNotifyDialog(job)}>
+                                <Bell className="w-4 h-4 mr-2" />
+                                Notify Staff
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDelete(job)}
