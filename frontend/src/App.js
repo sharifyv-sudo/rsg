@@ -44,6 +44,12 @@ const AdminSidebar = ({ onLogout, userId, userName }) => {
     { path: "/sia-licenses", icon: Shield, label: "SIA Licenses" },
   ];
 
+  const patrolItems = [
+    { path: "/checkpoints", icon: MapPin, label: "Checkpoints" },
+    { path: "/patrol-reports", icon: RouteIcon, label: "Patrol Reports" },
+    { path: "/defects", icon: AlertTriangle, label: "Defects" },
+  ];
+
   const settingsItems = [
     { path: "/users", icon: UserCog, label: "User Management" },
     { path: "/profile", icon: User, label: "My Profile" },
@@ -81,6 +87,25 @@ const AdminSidebar = ({ onLogout, userId, userName }) => {
           );
         })}
         
+        {/* Patrol Management Section */}
+        <div className="pt-4 mt-4 border-t border-border">
+          <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Patrol Management</p>
+          {patrolItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </NavLink>
+            );
+          })}
+        </div>
+
         {/* Compliance Section */}
         <div className="pt-4 mt-4 border-t border-border">
           <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Compliance</p>
