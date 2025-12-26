@@ -1009,6 +1009,177 @@ export default function Jobs() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Notify Staff Dialog */}
+      <Dialog open={showNotifyDialog} onOpenChange={setShowNotifyDialog}>
+        <DialogContent className="max-w-2xl" data-testid="notify-staff-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2">
+              <Bell className="h-5 w-5 text-[#0F64A8]" />
+              Notify Available Staff
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedJob && (
+            <div className="space-y-4">
+              {/* Job Summary */}
+              <div className="bg-muted p-4 rounded-md">
+                <h3 className="font-medium">{selectedJob.name}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {formatDate(selectedJob.date)} | {selectedJob.start_time} - {selectedJob.end_time} | {selectedJob.location}
+                </p>
+                <p className="text-sm mt-1">
+                  Rate: <span className="font-medium">{formatCurrency(selectedJob.hourly_rate)}/hr</span>
+                </p>
+              </div>
+
+              {/* Availability Summary */}
+              {availableStaff && (
+                <div className="flex gap-3 text-sm">
+                  <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200">
+                    <UserCheck className="h-3 w-3" />
+                    {availableStaff.summary.available} Available
+                  </Badge>
+                  <Badge variant="outline" className="gap-1 bg-blue-50 text-blue-700 border-blue-200">
+                    <Users className="h-3 w-3" />
+                    {availableStaff.summary.assigned} Assigned
+                  </Badge>
+                  <Badge variant="outline" className="gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                    <AlertCircle className="h-3 w-3" />
+                    {availableStaff.summary.conflicts} Conflicts
+                  </Badge>
+                  <Badge variant="outline" className="gap-1 bg-red-50 text-red-700 border-red-200">
+                    <UserX className="h-3 w-3" />
+                    {availableStaff.summary.unavailable} Unavailable
+                  </Badge>
+                </div>
+              )}
+
+              {/* Custom Message */}
+              <div>
+                <Label htmlFor="notify-message">Custom Message (Optional)</Label>
+                <Textarea
+                  id="notify-message"
+                  placeholder="Add a personal message to include in the notification email..."
+                  value={notifyMessage}
+                  onChange={(e) => setNotifyMessage(e.target.value)}
+                  className="mt-1"
+                  rows={2}
+                />
+              </div>
+
+              {/* Staff Selection List */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Select Staff to Notify</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (availableStaff) {
+                          const availableIds = availableStaff.staff
+                            .filter(s => s.availability_status === 'available')
+                            .map(s => s.id);
+                          setNotifyEmployees(availableIds);
+                        }
+                      }}
+                      className="text-xs h-7"
+                    >
+                      Select Available
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setNotifyEmployees([])}
+                      className="text-xs h-7"
+                    >
+                      Clear All
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="max-h-[280px] overflow-y-auto border rounded-md">
+                  {availableStaff?.staff?.length > 0 ? (
+                    availableStaff.staff.map((staff) => {
+                      const isSelected = notifyEmployees.includes(staff.id);
+                      const statusColors = {
+                        available: 'bg-green-50 border-green-200',
+                        assigned: 'bg-blue-50 border-blue-200',
+                        conflict: 'bg-amber-50 border-amber-200',
+                        unavailable: 'bg-red-50 border-red-200'
+                      };
+                      const statusBadgeColors = {
+                        available: 'bg-green-100 text-green-700',
+                        assigned: 'bg-blue-100 text-blue-700',
+                        conflict: 'bg-amber-100 text-amber-700',
+                        unavailable: 'bg-red-100 text-red-700'
+                      };
+                      
+                      return (
+                        <div
+                          key={staff.id}
+                          className={`flex items-center justify-between p-3 border-b last:border-b-0 ${
+                            isSelected ? 'bg-[#E0F2FE]' : statusColors[staff.availability_status]
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleNotifyEmployee(staff.id)}
+                              disabled={!staff.email}
+                              data-testid={`notify-select-${staff.id}`}
+                            />
+                            <div>
+                              <p className="font-medium text-sm">{staff.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {staff.position} | {staff.email || 'No email'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`badge text-xs ${statusBadgeColors[staff.availability_status]}`}>
+                              {staff.availability_status === 'available' && 'Available'}
+                              {staff.availability_status === 'assigned' && 'Already Assigned'}
+                              {staff.availability_status === 'conflict' && 'Schedule Conflict'}
+                              {staff.availability_status === 'unavailable' && 'Unavailable'}
+                            </span>
+                            {staff.availability_reason && staff.availability_status !== 'available' && (
+                              <span className="text-xs text-muted-foreground max-w-[200px] truncate">
+                                {staff.availability_reason}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Loading staff availability...</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNotifyDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendNotifications}
+              className="bg-[#0F64A8] hover:bg-[#0D5590] gap-2"
+              disabled={sendingNotifications || notifyEmployees.length === 0}
+              data-testid="send-notifications-btn"
+            >
+              <Send className="w-4 h-4" />
+              {sendingNotifications ? "Sending..." : `Notify ${notifyEmployees.length} Staff`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
