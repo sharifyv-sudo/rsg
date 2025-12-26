@@ -519,6 +519,27 @@ export default function Employees() {
         <div className="flex gap-2">
           <Button
             variant="outline"
+            onClick={() => exportToCSV(employees, 'employees', [
+              { header: 'Name', accessor: (e) => e.name },
+              { header: 'Email', accessor: (e) => e.email },
+              { header: 'Phone', accessor: (e) => e.phone },
+              { header: 'Department', accessor: (e) => e.department },
+              { header: 'Position', accessor: (e) => e.position },
+              { header: 'Hourly Rate', accessor: (e) => e.hourly_rate },
+              { header: 'Bank Account', accessor: (e) => e.bank_account },
+              { header: 'Sort Code', accessor: (e) => e.sort_code },
+              { header: 'Tax Code', accessor: (e) => e.tax_code },
+              { header: 'NI Number', accessor: (e) => e.ni_number },
+              { header: 'Availability', accessor: (e) => e.availability },
+            ])}
+            className="gap-2"
+            data-testid="export-employees-btn"
+          >
+            <FileDown className="w-4 h-4" />
+            Export CSV
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => setShowImportSection(!showImportSection)}
             className="gap-2"
             data-testid="bulk-import-toggle-btn"
