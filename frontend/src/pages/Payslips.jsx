@@ -136,6 +136,47 @@ export default function Payslips() {
     window.print();
   };
 
+  const handleSendEmail = async (payslip) => {
+    try {
+      await axios.post(`${API}/payslips/${payslip.id}/send-email`);
+      toast.success("Payslip sent to employee's email");
+      fetchData();
+    } catch (error) {
+      console.error("Error sending payslip email:", error);
+      toast.error(error.response?.data?.detail || "Failed to send payslip email");
+    }
+  };
+
+  const handleDownloadPDF = async (payslip) => {
+    try {
+      const response = await axios.get(`${API}/payslips/${payslip.id}/html`);
+      
+      // Create a printable document
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Payslip - ${payslip.employee_name} - ${payslip.period}</title>
+        </head>
+        <body>
+          ${response.data.html}
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      toast.success("PDF print dialog opened");
+    } catch (error) {
+      console.error("Error downloading payslip:", error);
+      toast.error("Failed to generate payslip PDF");
+    }
+  };
+
   const selectedEmployee = employees.find(e => e.id === formData.employee_id);
   const monthlyGross = selectedEmployee ? selectedEmployee.annual_salary / 12 : 0;
 
