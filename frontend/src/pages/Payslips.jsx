@@ -279,6 +279,7 @@ export default function Payslips() {
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => handleViewPayslip(payslip)}
+                              title="View Payslip"
                               data-testid={`view-payslip-${payslip.id}`}
                             >
                               <Eye className="w-4 h-4" />
@@ -286,8 +287,29 @@ export default function Payslips() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              className="h-8 w-8 text-[#0F64A8]"
+                              onClick={() => handleDownloadPDF(payslip)}
+                              title="Download PDF"
+                              data-testid={`download-payslip-${payslip.id}`}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-green-600"
+                              onClick={() => handleSendEmail(payslip)}
+                              title="Email to Employee"
+                              data-testid={`email-payslip-${payslip.id}`}
+                            >
+                              <Mail className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               className="h-8 w-8 text-destructive hover:text-destructive"
                               onClick={() => handleDeletePayslip(payslip)}
+                              title="Delete"
                               data-testid={`delete-payslip-${payslip.id}`}
                             >
                               <Trash2 className="w-4 h-4" />
