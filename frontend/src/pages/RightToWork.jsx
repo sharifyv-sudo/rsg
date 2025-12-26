@@ -476,23 +476,42 @@ const RightToWork = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" data-testid="add-rtw-btn"><Plus className="h-4 w-4" /> Add RTW Check</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>{editingRecord ? "Edit RTW Check" : "Add RTW Check"}</DialogTitle>
-                  <DialogDescription>{editingRecord ? "Update the Right to Work check details" : "Add a new Right to Work check record"}</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Employee Name *</Label>
-                    <Input value={form.employee_name} onChange={(e) => setForm({ ...form, employee_name: e.target.value })} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Document Type *</Label>
-                    <Select value={form.document_type} onValueChange={(value) => setForm({ ...form, document_type: value })}>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => exportToCSV(records, 'right_to_work', [
+                  { header: 'Employee Name', accessor: (r) => r.employee_name },
+                  { header: 'Document Type', accessor: (r) => r.document_type },
+                  { header: 'Document Number', accessor: (r) => r.document_number },
+                  { header: 'Share Code', accessor: (r) => r.share_code },
+                  { header: 'Date of Birth', accessor: (r) => r.date_of_birth },
+                  { header: 'Check Date', accessor: (r) => r.check_date },
+                  { header: 'Expiry Date', accessor: (r) => r.expiry_date },
+                  { header: 'Status', accessor: (r) => r.status },
+                  { header: 'Notes', accessor: (r) => r.notes },
+                ])}
+                className="gap-2"
+              >
+                <FileDown className="h-4 w-4" />
+                Export CSV
+              </Button>
+              <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" data-testid="add-rtw-btn"><Plus className="h-4 w-4" /> Add RTW Check</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>{editingRecord ? "Edit RTW Check" : "Add RTW Check"}</DialogTitle>
+                    <DialogDescription>{editingRecord ? "Update the Right to Work check details" : "Add a new Right to Work check record"}</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Employee Name *</Label>
+                      <Input value={form.employee_name} onChange={(e) => setForm({ ...form, employee_name: e.target.value })} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Document Type *</Label>
+                      <Select value={form.document_type} onValueChange={(value) => setForm({ ...form, document_type: value })}>
                       <SelectTrigger><SelectValue placeholder="Select document type" /></SelectTrigger>
                       <SelectContent>
                         {RTW_DOCUMENT_TYPES.map((type) => (<SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>))}
