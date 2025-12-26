@@ -1844,14 +1844,6 @@ async def delete_rtw_check(rtw_id: str):
         raise HTTPException(status_code=404, detail="RTW check not found")
     return {"message": "RTW check deleted successfully"}
 
-class BulkImportRequest(BaseModel):
-    items: List[dict]
-
-class BulkImportResponse(BaseModel):
-    created: int
-    updated: int
-    errors: List[str]
-
 @api_router.post("/rtw/bulk-import", response_model=BulkImportResponse)
 async def bulk_import_rtw(request: BulkImportRequest):
     """Bulk import RTW checks"""
