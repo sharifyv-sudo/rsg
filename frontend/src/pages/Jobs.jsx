@@ -268,6 +268,64 @@ export default function Jobs() {
     window.print();
   };
 
+  // Open Notify Staff Dialog
+  const handleOpenNotifyDialog = async (job) => {
+    setSelectedJob(job);
+    setNotifyMessage("");
+    setNotifyEmployees([]);
+    setShowNotifyDialog(true);
+    
+    try {
+      const response = await axios.get(`${API}/jobs/${job.id}/available-staff`);
+      setAvailableStaff(response.data);
+      // Pre-select all available staff
+      const availableIds = response.data.staff
+        .filter(s => s.availability_status === 'available')
+        .map(s => s.id);
+      setNotifyEmployees(availableIds);
+    } catch (error) {
+      console.error("Error fetching available staff:", error);
+      toast.error("Failed to check staff availability");
+    }
+  };
+
+  // Toggle staff selection for notification
+  const toggleNotifyEmployee = (employeeId) => {
+    setNotifyEmployees(prev => 
+      prev.includes(employeeId)
+        ? prev.filter(id => id !== employeeId)
+        : [...prev, employeeId]
+    );
+  };
+
+  // Send notifications to selected staff
+  const handleSendNotifications = async () => {
+    if (notifyEmployees.length === 0) {
+      toast.error("Please select at least one staff member");
+      return;
+    }
+
+    setSendingNotifications(true);
+    try {
+      const response = await axios.post(`${API}/jobs/${selectedJob.id}/notify-staff`, {
+        job_id: selectedJob.id,
+        employee_ids: notifyEmployees,
+        message: notifyMessage || undefined
+      });
+      
+      toast.success(`Notifications sent to ${response.data.notifications_sent} staff members`);
+      if (response.data.notifications_failed > 0) {
+        toast.warning(`${response.data.notifications_failed} notification(s) failed to send`);
+      }
+      setShowNotifyDialog(false);
+    } catch (error) {
+      console.error("Error sending notifications:", error);
+      toast.error("Failed to send notifications");
+    } finally {
+      setSendingNotifications(false);
+    }
+  };
+
   const toggleEmployeeSelection = (employeeId) => {
     setSelectedEmployees(prev => 
       prev.includes(employeeId) 
