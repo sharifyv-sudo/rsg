@@ -174,6 +174,7 @@ const StaffSidebar = ({ userName, userId, onLogout }) => {
   const navItems = [
     { path: "/staff", icon: Home, label: "Dashboard" },
     { path: "/staff/jobs", icon: Briefcase, label: "Jobs" },
+    { path: "/staff/patrol", icon: MapPin, label: "Patrol" },
     { path: "/staff/timeclock", icon: Clock, label: "Time Clock" },
     { path: "/staff/payslips", icon: FileText, label: "Payslips" },
   ];
