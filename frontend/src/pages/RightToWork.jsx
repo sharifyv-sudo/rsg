@@ -597,6 +597,7 @@ const RightToWork = () => {
               </DialogContent>
             </Dialog>
           </div>
+          </div>
 
           <div className="p-4">
             <p className="text-sm font-medium text-muted-foreground mb-4">All RTW Checks ({filteredRecords.length})</p>
