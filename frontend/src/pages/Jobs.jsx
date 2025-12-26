@@ -105,12 +105,17 @@ export default function Jobs() {
   const [showDialog, setShowDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showNotifyDialog, setShowNotifyDialog] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
   const [formData, setFormData] = useState(initialFormData);
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [exportData, setExportData] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [availableStaff, setAvailableStaff] = useState(null);
+  const [notifyEmployees, setNotifyEmployees] = useState([]);
+  const [notifyMessage, setNotifyMessage] = useState("");
+  const [sendingNotifications, setSendingNotifications] = useState(false);
   const printRef = useRef();
 
   useEffect(() => {
