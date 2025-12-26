@@ -57,6 +57,67 @@ class LoginResponse(BaseModel):
     user_type: Optional[str] = None  # "admin" or "staff"
     user_id: Optional[str] = None
     user_name: Optional[str] = None
+    user_role: Optional[str] = None  # "super_admin", "admin", "manager", "staff"
+
+# ========== User Management Models ==========
+
+class UserRole(str, Enum):
+    SUPER_ADMIN = "super_admin"  # Can manage all users and settings
+    ADMIN = "admin"  # Can manage most features except other admins
+    MANAGER = "manager"  # Limited admin access - can manage staff, jobs, timesheets
+    STAFF = "staff"  # Staff portal access only
+
+class User(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: str
+    name: str
+    password_hash: str
+    role: str = "staff"  # super_admin, admin, manager, staff
+    is_active: bool = True
+    phone: Optional[str] = None
+    department: Optional[str] = None
+    employee_id: Optional[str] = None  # Link to employee record for staff
+    last_login: Optional[str] = None
+    password_changed_at: Optional[str] = None
+    failed_login_attempts: int = 0
+    locked_until: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_by: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class UserCreate(BaseModel):
+    email: str
+    name: str
+    password: str
+    role: str = "staff"
+    phone: Optional[str] = None
+    department: Optional[str] = None
+    employee_id: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    phone: Optional[str] = None
+    department: Optional[str] = None
+    employee_id: Optional[str] = None
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+class AdminPasswordResetRequest(BaseModel):
+    new_password: str
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
 
 class TimeClockEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
