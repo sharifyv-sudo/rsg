@@ -294,7 +294,7 @@ function App() {
   return (
     <BrowserRouter>
       <div className="flex min-h-screen bg-background">
-        <AdminSidebar onLogout={handleLogout} />
+        <AdminSidebar onLogout={handleLogout} userId={userId} userName={userName} />
         <main className="flex-1 overflow-auto">
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -304,8 +304,13 @@ function App() {
             <Route path="/employees" element={<Employees />} />
             <Route path="/invoices" element={<Invoices />} />
             <Route path="/payslips" element={<Payslips />} />
-            <Route path="/rtw" element={<RightToWork />} />
-            <Route path="/sia" element={<SIALicenses />} />
+            <Route path="/right-to-work" element={<RightToWork />} />
+            <Route path="/sia-licenses" element={<SIALicenses />} />
+            <Route path="/users" element={<UserManagement />} />
+            <Route path="/profile" element={<Profile userId={userId} userName={userName} userRole={userType} />} />
+            {/* Legacy routes for backward compatibility */}
+            <Route path="/rtw" element={<Navigate to="/right-to-work" replace />} />
+            <Route path="/sia" element={<Navigate to="/sia-licenses" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
