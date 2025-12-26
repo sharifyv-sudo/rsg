@@ -892,6 +892,107 @@ async def delete_employee(employee_id: str):
         raise HTTPException(status_code=404, detail="Employee not found")
     return {"message": "Employee deleted successfully"}
 
+@api_router.post("/employees/bulk-import", response_model=BulkImportResponse)
+async def bulk_import_employees(request: BulkImportRequest):
+    """Bulk import employees - updates existing by email or creates new"""
+    created = 0
+    updated = 0
+    errors = []
+    valid_availabilities = ["available", "unavailable", "on_leave"]
+    
+    for idx, item in enumerate(request.items):
+        try:
+            # Required fields
+            name = item.get("name", "").strip()
+            if not name:
+                errors.append(f"Row {idx + 1}: Missing name")
+                continue
+            
+            email = item.get("email", "").strip().lower()
+            if not email:
+                errors.append(f"Row {idx + 1}: Missing email for {name}")
+                continue
+            
+            department = item.get("department", "").strip()
+            if not department:
+                department = "General"  # Default department
+            
+            position = item.get("position", "").strip()
+            if not position:
+                position = "Security Officer"  # Default position
+            
+            # Optional fields
+            phone = item.get("phone", "").strip() or item.get("contact", "").strip() or item.get("mobile", "").strip() or None
+            
+            # Handle hourly rate - accept various formats
+            hourly_rate_raw = item.get("hourly_rate", "") or item.get("pay_rate", "") or item.get("rate", "")
+            hourly_rate = None
+            if hourly_rate_raw:
+                try:
+                    # Remove currency symbols and convert to float
+                    rate_str = str(hourly_rate_raw).replace("£", "").replace("$", "").replace(",", "").strip()
+                    hourly_rate = float(rate_str) if rate_str else None
+                except (ValueError, TypeError):
+                    pass
+            
+            bank_account = item.get("bank_account", "").strip() or item.get("account_number", "").strip() or None
+            sort_code = item.get("sort_code", "").strip() or None
+            tax_code = item.get("tax_code", "").strip() or "1257L"
+            ni_number = item.get("ni_number", "").strip() or item.get("national_insurance", "").strip() or None
+            
+            availability = item.get("availability", "available").strip().lower().replace(" ", "_")
+            if availability not in valid_availabilities:
+                availability = "available"
+            
+            # Check if employee already exists by email
+            existing = await db.employees.find_one({"email": {"$regex": f"^{email}$", "$options": "i"}})
+            
+            if existing:
+                # Update existing employee
+                update_data = {
+                    "name": name,
+                    "phone": phone,
+                    "department": department,
+                    "position": position,
+                    "hourly_rate": hourly_rate,
+                    "bank_account": bank_account,
+                    "sort_code": sort_code,
+                    "tax_code": tax_code,
+                    "ni_number": ni_number,
+                    "availability": availability,
+                }
+                # Remove None values to not overwrite existing data
+                update_data = {k: v for k, v in update_data.items() if v is not None}
+                
+                await db.employees.update_one({"id": existing["id"]}, {"$set": update_data})
+                updated += 1
+            else:
+                # Create new employee
+                new_employee = {
+                    "id": str(uuid.uuid4()),
+                    "name": name,
+                    "email": email,
+                    "phone": phone,
+                    "department": department,
+                    "position": position,
+                    "hourly_rate": hourly_rate,
+                    "contract_id": None,
+                    "bank_account": bank_account,
+                    "sort_code": sort_code,
+                    "tax_code": tax_code,
+                    "ni_number": ni_number,
+                    "availability": availability,
+                    "password_hash": None,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.employees.insert_one(new_employee)
+                created += 1
+                
+        except Exception as e:
+            errors.append(f"Row {idx + 1}: {str(e)}")
+    
+    return BulkImportResponse(created=created, updated=updated, errors=errors)
+
 # ========== Payslip Endpoints ==========
 
 @api_router.get("/payslips", response_model=List[Payslip])
