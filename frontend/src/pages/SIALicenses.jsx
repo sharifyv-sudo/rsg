@@ -438,26 +438,42 @@ const SIALicenses = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" data-testid="add-sia-btn"><Plus className="h-4 w-4" /> Add SIA License</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>{editingRecord ? "Edit SIA License" : "Add SIA License"}</DialogTitle>
-                  <DialogDescription>{editingRecord ? "Update the SIA license details" : "Add a new SIA license record"}</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Employee Name *</Label>
-                    <Input value={form.employee_name} onChange={(e) => setForm({ ...form, employee_name: e.target.value })} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>License Number *</Label>
-                    <Input 
-                      value={form.license_number} 
-                      onChange={(e) => setForm({ ...form, license_number: e.target.value })} 
-                      required 
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => exportToCSV(records, 'sia_licenses', [
+                  { header: 'Employee Name', accessor: (r) => r.employee_name },
+                  { header: 'License Number', accessor: (r) => r.license_number },
+                  { header: 'License Type', accessor: (r) => r.license_type },
+                  { header: 'Expiry Date', accessor: (r) => r.expiry_date },
+                  { header: 'Active', accessor: (r) => r.is_active ? 'Yes' : 'No' },
+                  { header: 'Notes', accessor: (r) => r.notes },
+                ])}
+                className="gap-2"
+              >
+                <FileDown className="h-4 w-4" />
+                Export CSV
+              </Button>
+              <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" data-testid="add-sia-btn"><Plus className="h-4 w-4" /> Add SIA License</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{editingRecord ? "Edit SIA License" : "Add SIA License"}</DialogTitle>
+                    <DialogDescription>{editingRecord ? "Update the SIA license details" : "Add a new SIA license record"}</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Employee Name *</Label>
+                      <Input value={form.employee_name} onChange={(e) => setForm({ ...form, employee_name: e.target.value })} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>License Number *</Label>
+                      <Input 
+                        value={form.license_number} 
+                        onChange={(e) => setForm({ ...form, license_number: e.target.value })} 
+                        required 
                       placeholder="e.g., 1234567890123456"
                       maxLength={16}
                     />
