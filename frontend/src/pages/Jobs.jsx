@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, MoreHorizontal, Pencil, Trash2, Users, Calendar, MapPin, Clock, Download, Printer, FileText, MapPinned } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Users, Calendar, MapPin, Clock, Download, Printer, FileText, MapPinned, FileDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;

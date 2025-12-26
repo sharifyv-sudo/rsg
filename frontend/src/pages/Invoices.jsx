@@ -306,6 +306,27 @@ export default function Invoices() {
           </h1>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportToCSV(invoices, 'invoices', [
+              { header: 'Invoice Number', accessor: (i) => i.invoice_number },
+              { header: 'Client Name', accessor: (i) => i.client_name },
+              { header: 'Client Email', accessor: (i) => i.client_email || '' },
+              { header: 'Job', accessor: (i) => i.job_name || '' },
+              { header: 'Issue Date', accessor: (i) => i.issue_date },
+              { header: 'Due Date', accessor: (i) => i.due_date },
+              { header: 'Subtotal', accessor: (i) => i.subtotal },
+              { header: 'Tax Rate', accessor: (i) => i.tax_rate },
+              { header: 'Total Amount', accessor: (i) => i.total_amount },
+              { header: 'Status', accessor: (i) => i.status },
+              { header: 'Notes', accessor: (i) => i.notes || '' },
+            ])}
+            className="gap-2"
+            data-testid="export-invoices-btn"
+          >
+            <FileDown className="w-4 h-4" />
+            Export CSV
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
