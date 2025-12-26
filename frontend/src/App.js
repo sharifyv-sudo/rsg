@@ -2,7 +2,7 @@ import "@/App.css";
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
-import { LayoutDashboard, Users, FileText, Briefcase, CalendarCheck, LogOut, Clock, Home, Receipt, ClipboardList, FileCheck, Shield } from "lucide-react";
+import { LayoutDashboard, Users, FileText, Briefcase, CalendarCheck, LogOut, Clock, Home, Receipt, ClipboardList, FileCheck, Shield, Settings, UserCog, User } from "lucide-react";
 import Dashboard from "@/pages/Dashboard";
 import Employees from "@/pages/Employees";
 import Payslips from "@/pages/Payslips";
@@ -17,6 +17,8 @@ import StaffTimeClock from "@/pages/StaffTimeClock";
 import StaffPayslips from "@/pages/StaffPayslips";
 import RightToWork from "@/pages/RightToWork";
 import SIALicenses from "@/pages/SIALicenses";
+import Profile from "@/pages/Profile";
+import UserManagement from "@/pages/UserManagement";
 import { Button } from "@/components/ui/button";
 
 // Admin Sidebar
