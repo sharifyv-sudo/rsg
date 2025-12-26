@@ -20,11 +20,16 @@ import {
   CheckCircle,
   Upload,
   FileUp,
-  Download
+  Download,
+  ExternalLink,
+  ShieldCheck
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// SIA License Register Check URL
+const SIA_LICENSE_CHECK_URL = "https://services.sia.homeoffice.gov.uk/Pages/pubLicenseSearch.aspx";
 
 // SIA License Type options
 const SIA_LICENSE_TYPES = [
@@ -58,7 +63,7 @@ const parseCSV = (text) => {
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_').replace(/['"]/g, ''));
   const data = [];
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+    const values = lines[i].split(',').map(v => v.trim().replace(/^['"']|['"']$/g, ''));
     if (values.length >= 2) {
       const row = {};
       headers.forEach((header, idx) => {
@@ -154,6 +159,38 @@ const FileDropZone = ({ onFileAccepted, isLoading }) => {
         </button>
       </div>
     </div>
+  );
+};
+
+// Verify License Button Component
+const VerifyLicenseButton = ({ licenseNumber, employeeName }) => {
+  const handleVerify = () => {
+    // Open the SIA license checker in a new tab
+    window.open(SIA_LICENSE_CHECK_URL, '_blank', 'noopener,noreferrer');
+    
+    // Show toast with instructions
+    toast.info(
+      <div>
+        <p className="font-medium">Verify SIA License</p>
+        <p className="text-sm mt-1">License Number: <span className="font-mono font-bold">{licenseNumber}</span></p>
+        <p className="text-sm">Employee: {employeeName}</p>
+        <p className="text-xs mt-2 text-muted-foreground">Enter the license number on the SIA website to verify</p>
+      </div>,
+      { duration: 10000 }
+    );
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleVerify}
+      className="gap-1 text-purple-600 border-purple-200 hover:bg-purple-50"
+      title="Verify license on SIA Register"
+    >
+      <ShieldCheck className="h-3 w-3" />
+      Verify
+    </Button>
   );
 };
 
@@ -285,11 +322,34 @@ const SIALicenses = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div>
         <p className="text-sm text-muted-foreground uppercase tracking-wider font-medium">COMPLIANCE</p>
         <h1 className="text-3xl font-bold text-foreground">SIA Licenses</h1>
       </div>
+
+      {/* SIA License Register Banner */}
+      <Card className="bg-purple-50 border-purple-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-6 w-6 text-purple-600" />
+              <div>
+                <p className="font-medium text-purple-900">SIA Public License Register</p>
+                <p className="text-sm text-purple-700">Verify SIA licenses online at the official register</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-2 border-purple-300 text-purple-700 hover:bg-purple-100"
+              onClick={() => window.open(SIA_LICENSE_CHECK_URL, '_blank', 'noopener,noreferrer')}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open SIA Register
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -348,8 +408,8 @@ const SIALicenses = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search licenses..."
-                className="pl-10 w-80"
+                placeholder="Search by name or license number..."
+                className="pl-10 w-96"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -370,7 +430,14 @@ const SIALicenses = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>License Number *</Label>
-                    <Input value={form.license_number} onChange={(e) => setForm({ ...form, license_number: e.target.value })} required placeholder="e.g., 1234567890123456" />
+                    <Input 
+                      value={form.license_number} 
+                      onChange={(e) => setForm({ ...form, license_number: e.target.value })} 
+                      required 
+                      placeholder="e.g., 1234567890123456"
+                      maxLength={16}
+                    />
+                    <p className="text-xs text-muted-foreground">16-digit SIA license number</p>
                   </div>
                   <div className="space-y-2">
                     <Label>License Type *</Label>
@@ -400,6 +467,15 @@ const SIALicenses = () => {
                     <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes..." />
                   </div>
                   <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => window.open(SIA_LICENSE_CHECK_URL, '_blank', 'noopener,noreferrer')}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Verify on SIA
+                    </Button>
                     <Button type="submit">{editingRecord ? "Update" : "Add"} License</Button>
                   </DialogFooter>
                 </form>
@@ -433,7 +509,15 @@ const SIALicenses = () => {
                   {filteredRecords.map((record) => (
                     <TableRow key={record.id}>
                       <TableCell className="font-medium">{record.employee_name}</TableCell>
-                      <TableCell className="font-mono">{record.license_number}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{record.license_number}</span>
+                          <VerifyLicenseButton 
+                            licenseNumber={record.license_number}
+                            employeeName={record.employee_name}
+                          />
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
                           {SIA_LICENSE_TYPES.find((t) => t.value === record.license_type)?.label || record.license_type}
