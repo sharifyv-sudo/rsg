@@ -332,9 +332,6 @@ function App() {
             <Route path="/payslips" element={<Payslips />} />
             <Route path="/right-to-work" element={<RightToWork />} />
             <Route path="/sia-licenses" element={<SIALicenses />} />
-            <Route path="/checkpoints" element={<Checkpoints />} />
-            <Route path="/patrol-reports" element={<PatrolReports />} />
-            <Route path="/defects" element={<Defects />} />
             <Route path="/users" element={<UserManagement />} />
             <Route path="/profile" element={<Profile userId={userId} userName={userName} userRole={userType} />} />
             {/* Legacy routes for backward compatibility */}
