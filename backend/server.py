@@ -2699,6 +2699,9 @@ async def send_compliance_alert_emails():
     else:
         raise HTTPException(status_code=500, detail=f"Failed to send email: {result.get('error')}")
 
+# Include the router in the main app (AFTER all routes are defined)
+app.include_router(api_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
