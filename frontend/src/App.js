@@ -297,13 +297,14 @@ function App() {
     return (
       <BrowserRouter>
         <div className="flex min-h-screen bg-background">
-          <StaffSidebar userName={userName} onLogout={handleLogout} />
+          <StaffSidebar userName={userName} userId={userId} onLogout={handleLogout} />
           <main className="flex-1 overflow-auto">
             <Routes>
               <Route path="/staff" element={<StaffDashboard userId={userId} userName={userName} />} />
               <Route path="/staff/jobs" element={<StaffJobs userId={userId} userName={userName} />} />
               <Route path="/staff/timeclock" element={<StaffTimeClock userId={userId} userName={userName} />} />
               <Route path="/staff/payslips" element={<StaffPayslips userId={userId} userName={userName} />} />
+              <Route path="/staff/profile" element={<Profile userId={userId} userName={userName} userRole="staff" />} />
               <Route path="*" element={<Navigate to="/staff" replace />} />
             </Routes>
           </main>
