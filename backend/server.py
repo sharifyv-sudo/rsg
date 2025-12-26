@@ -91,6 +91,16 @@ class ClockOutRequest(BaseModel):
 class JobSignupRequest(BaseModel):
     job_id: str
 
+# ========== Bulk Import Models ==========
+
+class BulkImportRequest(BaseModel):
+    items: List[dict]
+
+class BulkImportResponse(BaseModel):
+    created: int
+    updated: int
+    errors: List[str]
+
 # ========== Models ==========
 
 class Contract(BaseModel):
