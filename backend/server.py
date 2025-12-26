@@ -2058,8 +2058,7 @@ async def get_compliance_stats():
         "sia": {"total": sia_total, "active": sia_active, "expiring_soon": sia_expiring_soon}
     }
 
-# Include the router in the main app
-app.include_router(api_router)
+# Include the router in the main app will be done at the end after all routes are defined
 
 # Health check endpoint for Kubernetes - must be at root level (not under /api)
 @app.get("/health")
