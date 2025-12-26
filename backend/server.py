@@ -637,6 +637,415 @@ async def verify_token():
     """Verify if user is authenticated (token checked on frontend)"""
     return {"valid": True}
 
+# ========== User Management Endpoints ==========
+
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    """Validate password strength requirements"""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter"
+    if not any(c.islower() for c in password):
+        return False, "Password must contain at least one lowercase letter"
+    if not any(c.isdigit() for c in password):
+        return False, "Password must contain at least one number"
+    return True, "Password is strong"
+
+@api_router.get("/users")
+async def get_all_users():
+    """Get all users (admin only)"""
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    return users
+
+@api_router.get("/users/{user_id}")
+async def get_user(user_id: str):
+    """Get a specific user"""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@api_router.post("/users")
+async def create_user(input: UserCreate, created_by: str = "admin"):
+    """Create a new user"""
+    # Check if email already exists
+    existing = await db.users.find_one({"email": {"$regex": f"^{input.email}$", "$options": "i"}})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Validate password strength
+    is_valid, message = validate_password_strength(input.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=message)
+    
+    # Validate role
+    valid_roles = ["super_admin", "admin", "manager", "staff"]
+    if input.role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {valid_roles}")
+    
+    user = User(
+        email=input.email.lower(),
+        name=input.name,
+        password_hash=hashlib.sha256(input.password.encode()).hexdigest(),
+        role=input.role,
+        phone=input.phone,
+        department=input.department,
+        employee_id=input.employee_id,
+        created_by=created_by,
+        password_changed_at=datetime.now(timezone.utc).isoformat()
+    )
+    
+    user_dict = user.model_dump()
+    await db.users.insert_one(user_dict)
+    
+    # Return without password_hash
+    del user_dict['password_hash']
+    return user_dict
+
+@api_router.put("/users/{user_id}")
+async def update_user(user_id: str, input: UserUpdate):
+    """Update a user"""
+    existing = await db.users.find_one({"id": user_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    update_data = input.model_dump(exclude_unset=True)
+    
+    # Check email uniqueness if email is being changed
+    if 'email' in update_data and update_data['email']:
+        email_exists = await db.users.find_one({
+            "email": {"$regex": f"^{update_data['email']}$", "$options": "i"},
+            "id": {"$ne": user_id}
+        })
+        if email_exists:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        update_data['email'] = update_data['email'].lower()
+    
+    # Validate role if provided
+    if 'role' in update_data:
+        valid_roles = ["super_admin", "admin", "manager", "staff"]
+        if update_data['role'] not in valid_roles:
+            raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {valid_roles}")
+    
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    
+    await db.users.update_one({"id": user_id}, {"$set": update_data})
+    
+    updated = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    return updated
+
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str):
+    """Delete a user (soft delete by deactivating)"""
+    existing = await db.users.find_one({"id": user_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Soft delete - just deactivate
+    await db.users.update_one(
+        {"id": user_id}, 
+        {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "User deactivated successfully"}
+
+@api_router.delete("/users/{user_id}/permanent")
+async def permanently_delete_user(user_id: str):
+    """Permanently delete a user (use with caution)"""
+    result = await db.users.delete_one({"id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "User permanently deleted"}
+
+@api_router.post("/users/{user_id}/reset-password")
+async def admin_reset_password(user_id: str, request: AdminPasswordResetRequest):
+    """Admin resets a user's password"""
+    existing = await db.users.find_one({"id": user_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Validate password strength
+    is_valid, message = validate_password_strength(request.new_password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=message)
+    
+    new_hash = hashlib.sha256(request.new_password.encode()).hexdigest()
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "password_hash": new_hash,
+            "password_changed_at": datetime.now(timezone.utc).isoformat(),
+            "failed_login_attempts": 0,
+            "locked_until": None
+        }}
+    )
+    
+    return {"message": "Password reset successfully"}
+
+@api_router.post("/users/{user_id}/toggle-active")
+async def toggle_user_active(user_id: str):
+    """Toggle user active status"""
+    existing = await db.users.find_one({"id": user_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    new_status = not existing.get('is_active', True)
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"is_active": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": f"User {'activated' if new_status else 'deactivated'}", "is_active": new_status}
+
+# ========== Profile & Password Management ==========
+
+@api_router.get("/profile/{user_id}")
+async def get_profile(user_id: str):
+    """Get user's profile"""
+    # Check if it's the admin account
+    if user_id == "admin":
+        return {
+            "id": "admin",
+            "email": ADMIN_EMAIL,
+            "name": "Administrator",
+            "role": "super_admin",
+            "is_active": True
+        }
+    
+    # Check users collection
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    if user:
+        return user
+    
+    # Check employees collection (for staff)
+    employee = await db.employees.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    if employee:
+        return {
+            "id": employee['id'],
+            "email": employee.get('email', ''),
+            "name": employee.get('name', ''),
+            "role": "staff",
+            "phone": employee.get('phone', ''),
+            "department": employee.get('department', ''),
+            "position": employee.get('position', '')
+        }
+    
+    raise HTTPException(status_code=404, detail="Profile not found")
+
+@api_router.put("/profile/{user_id}")
+async def update_profile(user_id: str, input: ProfileUpdate):
+    """Update user's own profile"""
+    update_data = input.model_dump(exclude_unset=True)
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No data to update")
+    
+    # Check email uniqueness if email is being changed
+    if 'email' in update_data and update_data['email']:
+        # Check in users collection
+        email_exists = await db.users.find_one({
+            "email": {"$regex": f"^{update_data['email']}$", "$options": "i"},
+            "id": {"$ne": user_id}
+        })
+        if email_exists:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        
+        # Check in employees collection
+        email_exists = await db.employees.find_one({
+            "email": {"$regex": f"^{update_data['email']}$", "$options": "i"},
+            "id": {"$ne": user_id}
+        })
+        if email_exists:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        
+        update_data['email'] = update_data['email'].lower()
+    
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    
+    # Try updating in users collection first
+    result = await db.users.update_one({"id": user_id}, {"$set": update_data})
+    if result.matched_count > 0:
+        updated = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+        return updated
+    
+    # Try updating in employees collection
+    result = await db.employees.update_one({"id": user_id}, {"$set": update_data})
+    if result.matched_count > 0:
+        updated = await db.employees.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+        return updated
+    
+    raise HTTPException(status_code=404, detail="Profile not found")
+
+@api_router.post("/profile/{user_id}/change-password")
+async def change_password(user_id: str, request: PasswordChangeRequest):
+    """Change user's own password"""
+    current_hash = hashlib.sha256(request.current_password.encode()).hexdigest()
+    
+    # Validate new password strength
+    is_valid, message = validate_password_strength(request.new_password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=message)
+    
+    # Check if it's the admin account
+    if user_id == "admin":
+        if current_hash != ADMIN_PASSWORD_HASH:
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+        # Note: Admin password change would need to update environment variable
+        # For now, we'll store it in users collection
+        admin_user = await db.users.find_one({"email": ADMIN_EMAIL.lower()})
+        if admin_user:
+            new_hash = hashlib.sha256(request.new_password.encode()).hexdigest()
+            await db.users.update_one(
+                {"email": ADMIN_EMAIL.lower()},
+                {"$set": {
+                    "password_hash": new_hash,
+                    "password_changed_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+        else:
+            # Create admin user record
+            new_hash = hashlib.sha256(request.new_password.encode()).hexdigest()
+            admin_user = User(
+                id="admin",
+                email=ADMIN_EMAIL.lower(),
+                name="Administrator",
+                password_hash=new_hash,
+                role="super_admin",
+                password_changed_at=datetime.now(timezone.utc).isoformat()
+            )
+            await db.users.insert_one(admin_user.model_dump())
+        return {"message": "Password changed successfully"}
+    
+    # Check users collection
+    user = await db.users.find_one({"id": user_id})
+    if user:
+        if user.get('password_hash') != current_hash:
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+        
+        new_hash = hashlib.sha256(request.new_password.encode()).hexdigest()
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {
+                "password_hash": new_hash,
+                "password_changed_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        return {"message": "Password changed successfully"}
+    
+    # Check employees collection
+    employee = await db.employees.find_one({"id": user_id})
+    if employee:
+        stored_hash = employee.get('password_hash')
+        if not stored_hash:
+            stored_hash = hashlib.sha256(DEFAULT_STAFF_PASSWORD.encode()).hexdigest()
+        
+        if stored_hash != current_hash:
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+        
+        new_hash = hashlib.sha256(request.new_password.encode()).hexdigest()
+        await db.employees.update_one(
+            {"id": user_id},
+            {"$set": {
+                "password_hash": new_hash,
+                "password_changed_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        return {"message": "Password changed successfully"}
+    
+    raise HTTPException(status_code=404, detail="User not found")
+
+@api_router.post("/auth/request-password-reset")
+async def request_password_reset(request: PasswordResetRequest):
+    """Request a password reset email"""
+    email = request.email.lower()
+    
+    # Check if user exists (in users or employees)
+    user = await db.users.find_one({"email": email})
+    if not user:
+        user = await db.employees.find_one({"email": {"$regex": f"^{email}$", "$options": "i"}})
+    
+    if not user:
+        # Don't reveal if email exists
+        return {"message": "If the email exists, a reset link will be sent"}
+    
+    # Generate reset token
+    reset_token = hashlib.sha256(f"{email}{datetime.now(timezone.utc).isoformat()}{uuid.uuid4()}".encode()).hexdigest()
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    
+    # Store reset token
+    await db.password_resets.insert_one({
+        "email": email,
+        "token": reset_token,
+        "expires_at": expires_at,
+        "used": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Send reset email
+    reset_link = f"https://your-app-url.com/reset-password?token={reset_token}"
+    email_html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0F64A8;">Password Reset Request</h2>
+        <p>Hi,</p>
+        <p>We received a request to reset your password for Right Service Group.</p>
+        <p>Click the button below to reset your password:</p>
+        <a href="{reset_link}" style="display: inline-block; background: #0F64A8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0;">Reset Password</a>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+        <p style="color: #666; font-size: 12px;">Right Service Group</p>
+    </div>
+    """
+    
+    asyncio.create_task(send_email_async(email, "Password Reset Request - Right Service Group", email_html))
+    
+    return {"message": "If the email exists, a reset link will be sent"}
+
+@api_router.get("/users/stats")
+async def get_user_stats():
+    """Get user statistics"""
+    total_users = await db.users.count_documents({})
+    active_users = await db.users.count_documents({"is_active": True})
+    
+    # Count by role
+    super_admins = await db.users.count_documents({"role": "super_admin", "is_active": True})
+    admins = await db.users.count_documents({"role": "admin", "is_active": True})
+    managers = await db.users.count_documents({"role": "manager", "is_active": True})
+    staff_users = await db.users.count_documents({"role": "staff", "is_active": True})
+    
+    # Also count employees who can log in
+    total_employees = await db.employees.count_documents({})
+    
+    return {
+        "total_users": total_users,
+        "active_users": active_users,
+        "inactive_users": total_users - active_users,
+        "by_role": {
+            "super_admin": super_admins,
+            "admin": admins,
+            "manager": managers,
+            "staff": staff_users
+        },
+        "total_employees": total_employees
+    }
+
+# ========== Activity Log ==========
+
+@api_router.get("/activity-log")
+async def get_activity_log(limit: int = 50):
+    """Get recent activity log"""
+    logs = await db.activity_log.find({}, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
+    return logs
+
+async def log_activity(user_id: str, user_name: str, action: str, details: str = None):
+    """Log user activity"""
+    await db.activity_log.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "user_name": user_name,
+        "action": action,
+        "details": details,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+
 # ========== Staff Portal Endpoints ==========
 
 @api_router.get("/staff/{employee_id}/jobs")
