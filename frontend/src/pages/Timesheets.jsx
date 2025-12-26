@@ -30,6 +30,29 @@ import { toast } from "sonner";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+// CSV Export Helper
+const exportToCSV = (data, filename, columns) => {
+  const headers = columns.map(col => col.header).join(',');
+  const rows = data.map(item => 
+    columns.map(col => {
+      const value = col.accessor(item);
+      if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value ?? '';
+    }).join(',')
+  );
+  const csv = [headers, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+  toast.success(`Downloaded ${filename}.csv`);
+};
+
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
@@ -298,14 +321,33 @@ export default function Timesheets() {
             Timesheets
           </h1>
         </div>
-        <Button
-          onClick={() => handleOpenDialog()}
-          className="bg-[#0F64A8] hover:bg-[#0D5590] text-white"
-          data-testid="add-timesheet-btn"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Entry
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportToCSV(summary.filtered, 'timesheets', [
+              { header: 'Employee Name', accessor: (t) => t.employee_name || '' },
+              { header: 'Date', accessor: (t) => t.date },
+              { header: 'Location', accessor: (t) => t.location || '' },
+              { header: 'Hours Worked', accessor: (t) => t.hours_worked || 0 },
+              { header: 'Hourly Rate', accessor: (t) => t.hourly_rate || 0 },
+              { header: 'Earnings', accessor: (t) => ((t.hours_worked || 0) * (t.hourly_rate || 0)).toFixed(2) },
+              { header: 'Notes', accessor: (t) => t.notes || '' },
+            ])}
+            className="gap-2"
+            data-testid="export-timesheets-btn"
+          >
+            <FileDown className="w-4 h-4" />
+            Export CSV
+          </Button>
+          <Button
+            onClick={() => handleOpenDialog()}
+            className="bg-[#0F64A8] hover:bg-[#0D5590] text-white"
+            data-testid="add-timesheet-btn"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Entry
+          </Button>
+        </div>
       </div>
 
       {/* View Mode & Period Selector */}

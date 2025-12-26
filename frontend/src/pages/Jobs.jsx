@@ -31,6 +31,29 @@ import { Switch } from "@/components/ui/switch";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+// CSV Export Helper
+const exportToCSV = (data, filename, columns) => {
+  const headers = columns.map(col => col.header).join(',');
+  const rows = data.map(item => 
+    columns.map(col => {
+      const value = col.accessor(item);
+      if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value ?? '';
+    }).join(',')
+  );
+  const csv = [headers, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+  toast.success(`Downloaded ${filename}.csv`);
+};
+
 const JOB_TYPES = ["Steward", "Security", "Event Staff", "Hospitality", "Cleaning", "Parking", "Other"];
 const STATUS_OPTIONS = [
   { value: "upcoming", label: "Upcoming", color: "bg-blue-100 text-blue-700" },
@@ -284,14 +307,38 @@ export default function Jobs() {
             Job Assignments
           </h1>
         </div>
-        <Button
-          onClick={() => handleOpenDialog()}
-          className="bg-[#0F64A8] hover:bg-[#0D5590] text-white"
-          data-testid="add-job-btn"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Job
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportToCSV(jobs, 'jobs', [
+              { header: 'Job Name', accessor: (j) => j.name },
+              { header: 'Client', accessor: (j) => j.client },
+              { header: 'Date', accessor: (j) => j.date },
+              { header: 'Location', accessor: (j) => j.location },
+              { header: 'Start Time', accessor: (j) => j.start_time },
+              { header: 'End Time', accessor: (j) => j.end_time },
+              { header: 'Job Type', accessor: (j) => j.job_type },
+              { header: 'Staff Required', accessor: (j) => j.staff_required },
+              { header: 'Staff Assigned', accessor: (j) => j.assigned_employees?.length || 0 },
+              { header: 'Hourly Rate', accessor: (j) => j.hourly_rate },
+              { header: 'Status', accessor: (j) => j.status },
+              { header: 'Notes', accessor: (j) => j.notes || '' },
+            ])}
+            className="gap-2"
+            data-testid="export-jobs-btn"
+          >
+            <FileDown className="w-4 h-4" />
+            Export CSV
+          </Button>
+          <Button
+            onClick={() => handleOpenDialog()}
+            className="bg-[#0F64A8] hover:bg-[#0D5590] text-white"
+            data-testid="add-job-btn"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Job
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
