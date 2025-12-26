@@ -1760,15 +1760,14 @@ async def bulk_import_rtw(request: BulkImportRequest):
             if document_type not in valid_doc_types:
                 doc_type_map = {"biometric_residence_permit": "brp", "biometric residence permit": "brp", "share code": "share_code"}
                 document_type = doc_type_map.get(document_type.lower(), "other")
-            document_number = item.get("document_number", "").strip()
-            if not document_number:
-                errors.append(f"Row {idx + 1}: Missing document number")
-                continue
+            document_number = item.get("document_number", "").strip() or None  # Now optional
             check_date = item.get("check_date", "").strip()
             if not check_date:
                 errors.append(f"Row {idx + 1}: Missing check date")
                 continue
             expiry_date = item.get("expiry_date", "").strip() or None
+            share_code = item.get("share_code", "").strip() or None  # New field
+            date_of_birth = item.get("date_of_birth", "").strip() or None  # New field
             status = item.get("status", "pending").strip().lower().replace(" ", "_")
             if status not in valid_statuses:
                 status = "pending"
@@ -1778,14 +1777,17 @@ async def bulk_import_rtw(request: BulkImportRequest):
             if existing:
                 await db.rtw_checks.update_one({"id": existing["id"]}, {"$set": {
                     "document_type": document_type, "document_number": document_number,
-                    "check_date": check_date, "expiry_date": expiry_date, "status": status,
-                    "notes": notes, "updated_at": datetime.now(timezone.utc).isoformat()
+                    "check_date": check_date, "expiry_date": expiry_date, 
+                    "share_code": share_code, "date_of_birth": date_of_birth,
+                    "status": status, "notes": notes, 
+                    "updated_at": datetime.now(timezone.utc).isoformat()
                 }})
                 updated += 1
             else:
                 new_record = {
                     "id": str(uuid.uuid4()), "employee_name": employee_name, "document_type": document_type,
                     "document_number": document_number, "check_date": check_date, "expiry_date": expiry_date,
+                    "share_code": share_code, "date_of_birth": date_of_birth,
                     "status": status, "notes": notes,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "updated_at": datetime.now(timezone.utc).isoformat()
