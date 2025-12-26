@@ -522,6 +522,7 @@ const SIALicenses = () => {
               </DialogContent>
             </Dialog>
           </div>
+          </div>
 
           <div className="p-4">
             <p className="text-sm font-medium text-muted-foreground mb-4">All SIA Licenses ({filteredRecords.length})</p>
