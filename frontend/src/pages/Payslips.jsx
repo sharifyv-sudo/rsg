@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, FileText, Eye, Printer, Trash2 } from "lucide-react";
+import { Plus, FileText, Eye, Printer, Trash2, Send, Mail, FileDown, Download } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
